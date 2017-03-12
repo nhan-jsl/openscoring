@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="war" name="openscoring-webapp:war">
+    <output-path>$PROJECT_DIR$/openscoring-webapp/target</output-path>
+    <root id="archive" name="openscoring-webapp-1.3-SNAPSHOT.war">
+      <element id="artifact" artifact-name="openscoring-webapp:war exploded" />
+    </root>
+  </artifact>
+</component>

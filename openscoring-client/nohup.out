@@ -1,0 +1,10 @@
+Usage: org.openscoring.client.DirectoryDeployer [options]
+  Options:
+  * --dir
+       The directory to watch for PMML file additions and removals
+    --help
+       Show the list of configuration options and exit
+       Default: false
+  * --model-collection
+       The URI of the model collection
+

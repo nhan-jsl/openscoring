@@ -39,7 +39,7 @@ import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
 public class Openscoring extends ResourceConfig {
 
 	public Openscoring(){
-		super(ModelResource.class, MetricResource.class);
+		super(ModelResource.class, MetricResource.class, UserResource.class);
 
 		final
 		Config config = ConfigFactory.load();
