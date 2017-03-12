@@ -1,0 +1,14 @@
+org/openscoring/client/DirectoryDeployer.class
+org/openscoring/client/Deployer$1.class
+org/openscoring/client/Evaluator$1.class
+org/openscoring/client/Deployer.class
+org/openscoring/client/CsvEvaluator$1.class
+org/openscoring/client/ObjectMapperProvider.class
+org/openscoring/client/ModelApplication.class
+org/openscoring/client/CsvEvaluator.class
+org/openscoring/client/Application.class
+org/openscoring/client/Evaluator.class
+org/openscoring/client/Operation.class
+org/openscoring/client/CsvEvaluator$2.class
+org/openscoring/client/Undeployer$1.class
+org/openscoring/client/Undeployer.class

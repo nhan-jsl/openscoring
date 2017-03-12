@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../.resources/report.css" type="text/css"/><link rel="shortcut icon" href="../.resources/report.gif" type="image/gif"/><title>NetworkSecurityContextFilter.java</title><link rel="stylesheet" href="../.resources/prettify.css" type="text/css"/><script type="text/javascript" src="../.resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../.sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Openscoring Service</a> &gt; <a href="index.source.html" class="el_package">org.openscoring.service</a> &gt; <span class="el_source">NetworkSecurityContextFilter.java</span></div><h1>NetworkSecurityContextFilter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2014 Villu Ruusmann
+ *
+ * This file is part of Openscoring
+ *
+ * Openscoring is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Openscoring is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Openscoring.  If not, see &lt;http://www.gnu.org/licenses/&gt;.
+ */
+package org.openscoring.service;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.annotation.Priority;
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Priorities;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.container.PreMatching;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+import javax.ws.rs.ext.Provider;
+
+import com.google.common.collect.ImmutableSet;
+import com.typesafe.config.Config;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@Provider
+@PreMatching
+@Priority (
+	value = Priorities.AUTHENTICATION
+)
+public class NetworkSecurityContextFilter implements ContainerRequestFilter {
+
+	@Context
+	private HttpServletRequest request;
+
+<span class="fc" id="L54">	private Set&lt;String&gt; trustedAddresses = NetworkSecurityContextFilter.localAddresses;</span>
+
+
+	@Inject
+<span class="fc" id="L58">	public NetworkSecurityContextFilter(@Named(&quot;openscoring&quot;) Config config){</span>
+<span class="fc" id="L59">		Config networkConfig = config.getConfig(&quot;networkSecurityContextFilter&quot;);</span>
+
+<span class="fc" id="L61">		List&lt;String&gt; trustedAddresses = networkConfig.getStringList(&quot;trustedAddresses&quot;);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">		if(trustedAddresses.size() &gt; 0){</span>
+<span class="nc" id="L63">			this.trustedAddresses = ImmutableSet.copyOf(trustedAddresses);</span>
+		}
+<span class="fc" id="L65">	}</span>
+
+	@Override
+	public void filter(ContainerRequestContext context){
+<span class="fc" id="L69">		SecurityContext securityContext = new NetworkSecurityContext(this.request){</span>
+
+<span class="fc" id="L71">			private Set&lt;String&gt; trustedAddresses = NetworkSecurityContextFilter.this.trustedAddresses;</span>
+
+
+			@Override
+			public boolean isTrusted(String address){
+<span class="pc bpc" id="L76" title="3 of 4 branches missed.">				return (&quot;(in-memory)&quot;).equals(address) || (this.trustedAddresses).contains(address);</span>
+			}
+		};
+
+<span class="fc" id="L80">		context.setSecurityContext(securityContext);</span>
+<span class="fc" id="L81">	}</span>
+
+	static
+	private Set&lt;String&gt; discoverLocalAddresses() throws IOException {
+<span class="fc" id="L85">		Set&lt;String&gt; result = new LinkedHashSet&lt;&gt;();</span>
+
+<span class="fc" id="L87">		InetAddress address = InetAddress.getLocalHost();</span>
+<span class="fc" id="L88">		result.add(address.getHostAddress());</span>
+
+<span class="fc" id="L90">		InetAddress[] resolvedAddresses = InetAddress.getAllByName(&quot;localhost&quot;);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		for(InetAddress resolvedAddress : resolvedAddresses){</span>
+<span class="fc" id="L92">			result.add(resolvedAddress.getHostAddress());</span>
+		}
+
+<span class="fc" id="L95">		logger.info(&quot;Local network addresses: {}&quot;, result);</span>
+
+<span class="fc" id="L97">		return result;</span>
+	}
+
+<span class="fc" id="L100">	private static final Logger logger = LoggerFactory.getLogger(NetworkSecurityContextFilter.class);</span>
+
+	private static final Set&lt;String&gt; localAddresses;
+
+	static {
+
+		try {
+<span class="fc" id="L107">			localAddresses = ImmutableSet.copyOf(discoverLocalAddresses());</span>
+<span class="nc" id="L108">		} catch(IOException ioe){</span>
+<span class="nc" id="L109">			throw new ExceptionInInitializerError(ioe);</span>
+<span class="fc" id="L110">		}</span>
+<span class="fc" id="L111">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.6.201602180812</span></div></body></html>

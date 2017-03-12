@@ -146,6 +146,18 @@ public class ModelResource {
 		return createModelResponse(id, model, true);
 	}
 
+	@GET
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public ModelResponse queryByOrganization(@PathParam("orgId") String orgId, @PathParam("id") String id){
+		Model model = this.modelRegistry.get(id);
+		if(model == null){
+			throw new NotFoundException("Model \"" + id + "\" not found");
+		}
+
+		return createModelResponse(id, model, true);
+	}
+
 	@PUT
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@RolesAllowed (

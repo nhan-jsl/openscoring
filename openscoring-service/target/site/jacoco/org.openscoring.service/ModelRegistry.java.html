@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../.resources/report.css" type="text/css"/><link rel="shortcut icon" href="../.resources/report.gif" type="image/gif"/><title>ModelRegistry.java</title><link rel="stylesheet" href="../.resources/prettify.css" type="text/css"/><script type="text/javascript" src="../.resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../.sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Openscoring Service</a> &gt; <a href="index.source.html" class="el_package">org.openscoring.service</a> &gt; <span class="el_source">ModelRegistry.java</span></div><h1>ModelRegistry.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2014 Villu Ruusmann
+ *
+ * This file is part of Openscoring
+ *
+ * Openscoring is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Openscoring is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Openscoring.  If not, see &lt;http://www.gnu.org/licenses/&gt;.
+ */
+package org.openscoring.service;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Singleton;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.bind.ValidationEvent;
+import javax.xml.bind.ValidationEventHandler;
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.validation.Schema;
+
+import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
+import com.google.common.hash.HashingInputStream;
+import com.google.common.io.CountingInputStream;
+import com.typesafe.config.Config;
+import org.dmg.pmml.PMML;
+import org.dmg.pmml.Visitor;
+import org.jpmml.evaluator.ModelEvaluator;
+import org.jpmml.evaluator.ModelEvaluatorFactory;
+import org.jpmml.model.ImportFilter;
+import org.jpmml.model.JAXBUtil;
+import org.jvnet.hk2.annotations.Service;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
+
+@Service
+@Singleton
+public class ModelRegistry {
+
+<span class="fc" id="L67">	private List&lt;Class&lt;? extends Visitor&gt;&gt; visitorClazzes = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L69">	private boolean validate = false;</span>
+
+<span class="fc" id="L71">	private ConcurrentMap&lt;String, Model&gt; models = new ConcurrentHashMap&lt;&gt;();</span>
+
+
+	@Inject
+<span class="fc" id="L75">	public ModelRegistry(@Named(&quot;openscoring&quot;) Config config){</span>
+<span class="fc" id="L76">		Config modelRegistryConfig = config.getConfig(&quot;modelRegistry&quot;);</span>
+
+<span class="fc" id="L78">		List&lt;String&gt; visitorClassNames = modelRegistryConfig.getStringList(&quot;visitorClasses&quot;);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">		for(String visitorClassName : visitorClassNames){</span>
+			Class&lt;?&gt; clazz;
+
+			try {
+<span class="nc" id="L83">				clazz = Class.forName(visitorClassName);</span>
+<span class="nc" id="L84">			} catch(ClassNotFoundException cnfe){</span>
+<span class="nc" id="L85">				throw new IllegalArgumentException(cnfe);</span>
+<span class="nc" id="L86">			}</span>
+
+			Class&lt;? extends Visitor&gt; visitorClazz;
+
+			try {
+<span class="nc" id="L91">				visitorClazz = clazz.asSubclass(Visitor.class);</span>
+<span class="nc" id="L92">			} catch(ClassCastException cce){</span>
+<span class="nc" id="L93">				throw new IllegalArgumentException(cce);</span>
+<span class="nc" id="L94">			}</span>
+
+<span class="nc" id="L96">			this.visitorClazzes.add(visitorClazz);</span>
+<span class="nc" id="L97">		}</span>
+
+<span class="fc" id="L99">		this.validate = modelRegistryConfig.getBoolean(&quot;validate&quot;);</span>
+<span class="fc" id="L100">	}</span>
+
+	public Collection&lt;Map.Entry&lt;String, Model&gt;&gt; entries(){
+<span class="nc" id="L103">		return this.models.entrySet();</span>
+	}
+
+	@SuppressWarnings (
+		value = {&quot;resource&quot;}
+	)
+	public Model load(InputStream is) throws Exception {
+<span class="fc" id="L110">		CountingInputStream countingIs = new CountingInputStream(is);</span>
+
+<span class="fc" id="L112">		HashingInputStream hashingIs = new HashingInputStream(Hashing.md5(), countingIs);</span>
+
+<span class="fc" id="L114">		ModelEvaluator&lt;?&gt; evaluator = unmarshal(hashingIs, this.validate);</span>
+
+<span class="fc" id="L116">		PMML pmml = evaluator.getPMML();</span>
+
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">		for(Class&lt;? extends Visitor&gt; visitorClazz : this.visitorClazzes){</span>
+<span class="nc" id="L119">			Visitor visitor = visitorClazz.newInstance();</span>
+
+<span class="nc" id="L121">			visitor.applyTo(pmml);</span>
+<span class="nc" id="L122">		}</span>
+
+<span class="fc" id="L124">		evaluator.verify();</span>
+
+<span class="fc" id="L126">		Model model = new Model(evaluator);</span>
+<span class="fc" id="L127">		model.putProperty(Model.PROPERTY_FILE_SIZE, countingIs.getCount());</span>
+<span class="fc" id="L128">		model.putProperty(Model.PROPERTY_FILE_MD5SUM, (hashingIs.hash()).toString());</span>
+
+<span class="fc" id="L130">		return model;</span>
+	}
+
+	public void store(Model model, OutputStream os) throws JAXBException {
+<span class="fc" id="L134">		ModelEvaluator&lt;?&gt; evaluator = model.getEvaluator();</span>
+
+<span class="fc" id="L136">		marshal(evaluator, os);</span>
+<span class="fc" id="L137">	}</span>
+
+	public Model get(String id){
+<span class="fc" id="L140">		return get(id, false);</span>
+	}
+
+	public Model get(String id, boolean touch){
+<span class="fc" id="L144">		Model model = this.models.get(id);</span>
+
+<span class="fc bfc" id="L146" title="All 4 branches covered.">		if(model != null &amp;&amp; touch){</span>
+<span class="fc" id="L147">			model.putProperty(Model.PROPERTY_ACCESSED_TIMESTAMP, new Date());</span>
+		}
+
+<span class="fc" id="L150">		return model;</span>
+	}
+
+	public boolean put(String id, Model model){
+<span class="fc" id="L154">		Model oldModel = this.models.putIfAbsent(id, Preconditions.checkNotNull(model));</span>
+
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">		return (oldModel == null);</span>
+	}
+
+	public boolean replace(String id, Model oldModel, Model model){
+<span class="nc" id="L160">		return this.models.replace(id, oldModel, Preconditions.checkNotNull(model));</span>
+	}
+
+	public boolean remove(String id, Model model){
+<span class="fc" id="L164">		return this.models.remove(id, model);</span>
+	}
+
+	static
+	public boolean validateId(String id){
+<span class="pc bpc" id="L169" title="2 of 4 branches missed.">		return (id != null &amp;&amp; (id).matches(ID_REGEX));</span>
+	}
+
+	static
+	private ModelEvaluator&lt;?&gt; unmarshal(InputStream is, boolean validate) throws IOException, SAXException, JAXBException {
+<span class="fc" id="L174">		XMLReader reader = XMLReaderFactory.createXMLReader();</span>
+<span class="fc" id="L175">		reader.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+
+<span class="fc" id="L177">		ImportFilter filter = new ImportFilter(reader);</span>
+
+<span class="fc" id="L179">		Source source = new SAXSource(filter, new InputSource(is));</span>
+
+<span class="fc" id="L181">		Unmarshaller unmarshaller = JAXBUtil.createUnmarshaller();</span>
+<span class="fc" id="L182">		unmarshaller.setEventHandler(new SimpleValidationEventHandler());</span>
+
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">		if(validate){</span>
+<span class="nc" id="L185">			Schema schema = JAXBUtil.getSchema();</span>
+
+<span class="nc" id="L187">			unmarshaller.setSchema(schema);</span>
+		}
+
+<span class="fc" id="L190">		PMML pmml = (PMML)unmarshaller.unmarshal(source);</span>
+
+<span class="fc" id="L192">		ModelEvaluatorFactory modelEvaluatorFactory = ModelEvaluatorFactory.newInstance();</span>
+
+<span class="fc" id="L194">		return modelEvaluatorFactory.newModelEvaluator(pmml);</span>
+	}
+
+	static
+	private void marshal(ModelEvaluator&lt;?&gt; evaluator, OutputStream os) throws JAXBException {
+<span class="fc" id="L199">		PMML pmml = evaluator.getPMML();</span>
+
+<span class="fc" id="L201">		Result result = new StreamResult(os);</span>
+
+<span class="fc" id="L203">		Marshaller marshaller = JAXBUtil.createMarshaller();</span>
+
+<span class="fc" id="L205">		marshaller.marshal(pmml, result);</span>
+<span class="fc" id="L206">	}</span>
+
+	static
+<span class="fc" id="L209">	private class SimpleValidationEventHandler implements ValidationEventHandler {</span>
+
+		@Override
+		public boolean handleEvent(ValidationEvent event){
+<span class="nc" id="L213">			int severity = event.getSeverity();</span>
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">			switch(severity){</span>
+				case ValidationEvent.ERROR:
+				case ValidationEvent.FATAL_ERROR:
+<span class="nc" id="L218">					return false;</span>
+				default:
+<span class="nc" id="L220">					return true;</span>
+			}
+		}
+	}
+
+	public static final String ID_REGEX = &quot;[a-zA-Z0-9][a-zA-Z0-9\\_\\-]*&quot;;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.6.201602180812</span></div></body></html>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../.resources/report.css" type="text/css"/><link rel="shortcut icon" href="../.resources/report.gif" type="image/gif"/><title>Openscoring.java</title><link rel="stylesheet" href="../.resources/prettify.css" type="text/css"/><script type="text/javascript" src="../.resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../.sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Openscoring Service</a> &gt; <a href="index.source.html" class="el_package">org.openscoring.service</a> &gt; <span class="el_source">Openscoring.java</span></div><h1>Openscoring.java</h1><pre class="source lang-java linenums">/*
+ * Copyright (c) 2014 Villu Ruusmann
+ *
+ * This file is part of Openscoring
+ *
+ * Openscoring is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Openscoring is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Openscoring.  If not, see &lt;http://www.gnu.org/licenses/&gt;.
+ */
+package org.openscoring.service;
+
+import java.util.List;
+
+import javax.inject.Singleton;
+
+import com.codahale.metrics.MetricRegistry;
+import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import org.glassfish.hk2.utilities.Binder;
+import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.media.multipart.MultiPartFeature;
+import org.glassfish.jersey.message.DeflateEncoder;
+import org.glassfish.jersey.message.GZipEncoder;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.filter.EncodingFilter;
+import org.glassfish.jersey.server.filter.HttpMethodOverrideFilter;
+import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
+
+public class Openscoring extends ResourceConfig {
+
+	public Openscoring(){
+<span class="fc" id="L42">		super(ModelResource.class, MetricResource.class, UserResource.class);</span>
+
+		final
+<span class="fc" id="L45">		Config config = ConfigFactory.load();</span>
+
+<span class="fc" id="L47">		Binder binder = new AbstractBinder(){</span>
+
+			@Override
+			public void configure(){
+<span class="fc" id="L51">				bind(config).to(Config.class).named(&quot;openscoring&quot;);</span>
+
+<span class="fc" id="L53">				bind(ModelRegistry.class).to(ModelRegistry.class).in(Singleton.class);</span>
+<span class="fc" id="L54">				bind(MetricRegistry.class).to(MetricRegistry.class).in(Singleton.class);</span>
+<span class="fc" id="L55">			}</span>
+		};
+<span class="fc" id="L57">		register(binder);</span>
+
+		// JSON support
+<span class="fc" id="L60">		register(JacksonJsonProvider.class);</span>
+<span class="fc" id="L61">		register(ObjectMapperProvider.class);</span>
+
+		// Convert exceptions to JSON objects
+<span class="fc" id="L64">		register(WebApplicationExceptionMapper.class);</span>
+
+		// Permit the HTTP POST method to be changed to HTTP PUT or DELETE methods
+<span class="fc" id="L67">		register(HttpMethodOverrideFilter.class);</span>
+
+		// File upload support
+<span class="fc" id="L70">		register(MultiPartFeature.class);</span>
+
+		// Security support
+<span class="fc" id="L73">		register(RolesAllowedDynamicFeature.class);</span>
+
+		// GZip and Deflate encoding support
+<span class="fc" id="L76">		register(EncodingFilter.class);</span>
+<span class="fc" id="L77">		register(GZipEncoder.class);</span>
+<span class="fc" id="L78">		register(DeflateEncoder.class);</span>
+
+<span class="fc" id="L80">		Config applicationConfig = config.getConfig(&quot;application&quot;);</span>
+
+<span class="fc" id="L82">		List&lt;String&gt; componentClassNames = applicationConfig.getStringList(&quot;componentClasses&quot;);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		for(String componentClassName : componentClassNames){</span>
+			Class&lt;?&gt; clazz;
+
+			try {
+<span class="fc" id="L87">				clazz = Class.forName(componentClassName);</span>
+<span class="nc" id="L88">			} catch(ClassNotFoundException cnfe){</span>
+<span class="nc" id="L89">				throw new IllegalArgumentException(cnfe);</span>
+<span class="fc" id="L90">			}</span>
+
+<span class="fc" id="L92">			register(clazz);</span>
+<span class="fc" id="L93">		}</span>
+<span class="fc" id="L94">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.6.201602180812</span></div></body></html>

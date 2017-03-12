@@ -1,0 +1,12 @@
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/ModelResource.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/ObjectMapperProvider.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/ModelRegistry.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/Openscoring.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/ModelUtil.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/UserResource.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/Model.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/WebApplicationExceptionMapper.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/NetworkSecurityContext.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/NetworkSecurityContextFilter.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/CsvUtil.java
+/home/nhannd/johnsnowlab/openscoring/openscoring-service/src/main/java/org/openscoring/service/MetricResource.java
