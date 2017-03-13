@@ -222,5 +222,5 @@ public class ModelRegistry {
 		}
 	}
 
-	public static final String ID_REGEX = "[a-zA-Z0-9][a-zA-Z0-9\\_\\-]*";
+	public static final String ID_REGEX = "[a-zA-Z0-9][#a-zA-Z0-9\\_\\-]*";
 }
