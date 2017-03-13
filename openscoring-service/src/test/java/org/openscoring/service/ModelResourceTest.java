@@ -18,19 +18,6 @@
  */
 package org.openscoring.service;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.List;
-
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-
 import com.google.common.collect.Maps;
 import org.dmg.pmml.FieldName;
 import org.glassfish.jersey.client.ClientConfig;
@@ -39,13 +26,25 @@ import org.glassfish.jersey.media.multipart.FormDataMultiPart;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Test;
-import org.openscoring.common.BatchEvaluationRequest;
-import org.openscoring.common.BatchEvaluationResponse;
-import org.openscoring.common.EvaluationRequest;
-import org.openscoring.common.EvaluationResponse;
-import org.openscoring.common.ModelResponse;
-import org.openscoring.common.SimpleResponse;
+import org.openscoring.common.*;
 import org.supercsv.prefs.CsvPreference;
+
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.config.IniSecurityManagerFactory;
+import org.apache.shiro.util.Factory;
+import org.apache.shiro.mgt.SecurityManager;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -71,6 +70,15 @@ public class ModelResourceTest extends JerseyTest {
 	public void decisionTreeIris() throws Exception {
 		String id = "DecisionTreeIris";
 
+		// setup security manager & do login
+		Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");
+		SecurityManager securityManager = factory.getInstance();
+		SecurityUtils.setSecurityManager(securityManager);
+		UserResponse user = new UserResponse();
+		user.setUsername("nhanndX");
+		user.setPassword("secret");
+		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
+
 		assertEquals("Iris", extractSuffix(id));
 
 		deploy(id);
@@ -90,7 +98,7 @@ public class ModelResourceTest extends JerseyTest {
 
 		BatchEvaluationResponse batchResponse = evaluateBatch(id, batchRequest);
 
-		assertEquals(batchRequest.getId(), batchResponse.getId());
+		assertEquals("orgx##" + batchRequest.getId(), batchResponse.getId());
 
 		List<EvaluationResponse> responses = batchResponse.getResponses();
 
@@ -107,6 +115,15 @@ public class ModelResourceTest extends JerseyTest {
 
 	@Test
 	public void associationRulesShopping() throws Exception {
+		// setup security manager & do login
+		Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");
+		SecurityManager securityManager = factory.getInstance();
+		SecurityUtils.setSecurityManager(securityManager);
+		UserResponse user = new UserResponse();
+		user.setUsername("nhanndX");
+		user.setPassword("secret");
+		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
+
 		String id = "AssociationRulesShopping";
 
 		assertEquals("Shopping", extractSuffix(id));
@@ -127,7 +144,7 @@ public class ModelResourceTest extends JerseyTest {
 
 		batchResponse = evaluateBatch(id, batchRequest);
 
-		assertEquals(batchRequest.getId(), batchResponse.getId());
+		assertEquals("orgx##" + batchRequest.getId(), batchResponse.getId());
 
 		evaluateCsv(id);
 
@@ -142,7 +159,7 @@ public class ModelResourceTest extends JerseyTest {
 		try(InputStream is = openPMML(id)){
 			Entity<InputStream> entity = Entity.entity(is, MediaType.APPLICATION_XML);
 
-			response = target("model/" + id).request(MediaType.APPLICATION_JSON).put(entity);
+			response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).put(entity);
 		}
 
 		assertEquals(201, response.getStatus());
@@ -160,7 +177,7 @@ public class ModelResourceTest extends JerseyTest {
 
 			Entity<FormDataMultiPart> entity = Entity.entity(formData, MediaType.MULTIPART_FORM_DATA);
 
-			response = target("model").request(MediaType.APPLICATION_JSON).post(entity);
+			response = target("model/orgx").request(MediaType.APPLICATION_JSON).post(entity);
 
 			formData.close();
 		}
@@ -169,13 +186,13 @@ public class ModelResourceTest extends JerseyTest {
 
 		URI location = response.getLocation();
 
-		assertEquals("/model/" + id, location.getPath());
+		assertEquals("/model/orgx/" + id, location.getPath());
 
 		return response.readEntity(ModelResponse.class);
 	}
 
 	private Response download(String id){
-		Response response = target("model/" + id + "/pmml").request(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML).get();
+		Response response = target("model/orgx/" + id + "/pmml").request(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML).get();
 
 		assertEquals(200, response.getStatus());
 		assertEquals(MediaType.APPLICATION_XML_TYPE.withCharset(CHARSET_UTF_8), response.getMediaType());
@@ -186,7 +203,7 @@ public class ModelResourceTest extends JerseyTest {
 	private EvaluationResponse evaluate(String id, EvaluationRequest request){
 		Entity<EvaluationRequest> entity = Entity.json(request);
 
-		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).post(entity);
+		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).post(entity);
 
 		assertEquals(200, response.getStatus());
 
@@ -196,7 +213,7 @@ public class ModelResourceTest extends JerseyTest {
 	private BatchEvaluationResponse evaluateBatch(String id, BatchEvaluationRequest batchRequest){
 		Entity<BatchEvaluationRequest> entity = Entity.json(batchRequest);
 
-		Response response = target("model/" + id + "/batch").request(MediaType.APPLICATION_JSON).post(entity);
+		Response response = target("model/orgx/" + id + "/batch").request(MediaType.APPLICATION_JSON).post(entity);
 
 		assertEquals(200, response.getStatus());
 
@@ -209,7 +226,7 @@ public class ModelResourceTest extends JerseyTest {
 		try(InputStream is = openCSV(id)){
 			Entity<InputStream> entity = Entity.entity(is, MediaType.TEXT_PLAIN_TYPE.withCharset(CHARSET_ISO_8859_1));
 
-			response = target("model/" + id + "/csv").queryParam("delimiterChar", "\\t").queryParam("quoteChar", "\\\"").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
+			response = target("model/orgx/" + id + "/csv").queryParam("delimiterChar", "\\t").queryParam("quoteChar", "\\\"").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
 		}
 
 		assertEquals(200, response.getStatus());
@@ -227,7 +244,7 @@ public class ModelResourceTest extends JerseyTest {
 
 			Entity<FormDataMultiPart> entity = Entity.entity(formData, MediaType.MULTIPART_FORM_DATA);
 
-			response = target("model/" + id + "/csv").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
+			response = target("model/orgx/" + id + "/csv").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
 
 			formData.close();
 		}
@@ -239,7 +256,7 @@ public class ModelResourceTest extends JerseyTest {
 	}
 
 	private SimpleResponse undeploy(String id){
-		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).delete();
+		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).delete();
 
 		assertEquals(200, response.getStatus());
 
@@ -247,7 +264,7 @@ public class ModelResourceTest extends JerseyTest {
 	}
 
 	private SimpleResponse undeployForm(String id){
-		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).header("X-HTTP-Method-Override", "DELETE").post(null);
+		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).header("X-HTTP-Method-Override", "DELETE").post(null);
 
 		assertEquals(200, response.getStatus());
 

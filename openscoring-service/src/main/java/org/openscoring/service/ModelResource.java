@@ -18,75 +18,29 @@
  */
 package org.openscoring.service;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.net.URI;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import javax.annotation.security.PermitAll;
-import javax.annotation.security.RolesAllowed;
-import javax.inject.Inject;
-import javax.ws.rs.BadRequestException;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.InternalServerErrorException;
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.StreamingOutput;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-import javax.xml.bind.JAXBException;
-
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
+import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.subject.Subject;
 import org.dmg.pmml.FieldName;
 import org.glassfish.jersey.media.multipart.FormDataParam;
-import org.jpmml.evaluator.EvaluationException;
-import org.jpmml.evaluator.Evaluator;
-import org.jpmml.evaluator.EvaluatorUtil;
-import org.jpmml.evaluator.FieldValue;
-import org.jpmml.evaluator.HasGroupFields;
-import org.jpmml.evaluator.InputField;
-import org.jpmml.evaluator.ModelEvaluator;
-import org.openscoring.common.BatchEvaluationRequest;
-import org.openscoring.common.BatchEvaluationResponse;
-import org.openscoring.common.BatchModelResponse;
-import org.openscoring.common.EvaluationRequest;
-import org.openscoring.common.EvaluationResponse;
-import org.openscoring.common.ModelResponse;
-import org.openscoring.common.SimpleResponse;
+import org.jpmml.evaluator.*;
+import org.openscoring.common.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.supercsv.prefs.CsvPreference;
+
+import javax.annotation.security.PermitAll;
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.*;
+import javax.xml.bind.JAXBException;
+import java.io.*;
+import java.net.URI;
+import java.nio.charset.Charset;
+import java.util.*;
 
 @Path("model")
 @PermitAll
@@ -135,47 +89,58 @@ public class ModelResource {
 	}
 
 	@GET
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public ModelResponse query(@PathParam("id") String id){
-		Model model = this.modelRegistry.get(id);
-		if(model == null){
-			throw new NotFoundException("Model \"" + id + "\" not found");
-		}
-
-		return createModelResponse(id, model, true);
-	}
-
-	@GET
 	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public ModelResponse queryByOrganization(@PathParam("orgId") String orgId, @PathParam("id") String id){
+	public ModelResponse query(@PathParam("orgId") String orgId, @PathParam("id") String id){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to view this content!");
+		}
+
 		Model model = this.modelRegistry.get(id);
 		if(model == null){
-			throw new NotFoundException("Model \"" + id + "\" not found");
+			String[] org_id = id.split("##");
+			throw new NotFoundException("Model [" + org_id[1] + "] not found on organization [" + org_id[0] + "]");
 		}
 
 		return createModelResponse(id, model, true);
 	}
 
 	@PUT
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
-	@RolesAllowed (
-		value = {"admin"}
-	)
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.TEXT_XML})
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deploy(@PathParam("id") String id, InputStream is){
-		return doDeploy(id, is);
+	public Response deploy(@PathParam("orgId") String orgId, @PathParam("id") String id, InputStream is){
+		Subject currentUser = SecurityUtils.getSubject();
+		if (!currentUser.isAuthenticated()) {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		} else {
+			// user authenticated... we need check user have permission to put model on this orgId or not
+			String permission = orgId + ":model";
+			if (currentUser.isPermitted(permission)) {
+				// add prefix orgId
+				id = orgId + "##" + id;
+				return doDeploy(id, is);
+			}
+			return null;
+		}
 	}
 
 	@POST
-	@RolesAllowed (
-		value = {"admin"}
-	)
+	@Path("{orgId}")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deployForm(@FormDataParam("id") String id, @FormDataParam("pmml") InputStream is){
+	public Response deployForm(@PathParam("orgId") String orgId, @FormDataParam("id") String id, @FormDataParam("pmml") InputStream is){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
 
 		if(!ModelRegistry.validateId(id)){
 			throw new BadRequestException("Invalid identifier");
@@ -217,7 +182,7 @@ public class ModelResource {
 		} else
 
 		{
-			UriBuilder uriBuilder = (this.uriInfo.getBaseUriBuilder()).path(ModelResource.class).path(id);
+			UriBuilder uriBuilder = (this.uriInfo.getAbsolutePathBuilder()).path(id.split("##")[1]);
 
 			URI uri = uriBuilder.build();
 
@@ -226,12 +191,17 @@ public class ModelResource {
 	}
 
 	@GET
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}/pmml")
-	@RolesAllowed (
-		value = {"admin"}
-	)
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/pmml")
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_XML})
-	public Response download(@PathParam("id") String id){
+	public Response download(@PathParam("orgId") String orgId, @PathParam("id") String id){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
+
 		final
 		Model model = this.modelRegistry.get(id, true);
 		if(model == null){
@@ -269,10 +239,18 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public EvaluationResponse evaluate(@PathParam("id") String id, EvaluationRequest request){
+	public EvaluationResponse evaluate(@PathParam("orgId") String orgId, @PathParam("id") String id, EvaluationRequest request){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
+
 		List<EvaluationRequest> requests = Collections.singletonList(request);
 
 		List<EvaluationResponse> responses = doEvaluate(id, requests, true, "evaluate");
@@ -281,11 +259,19 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{id: " + ModelRegistry.ID_REGEX + "}/batch")
+	@Path("{orgId}/{id: " + ModelRegistry.ID_REGEX + "}/batch")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchEvaluationResponse evaluateBatch(@PathParam("id") String id, BatchEvaluationRequest request){
-		BatchEvaluationResponse batchResponse = new BatchEvaluationResponse(request.getId());
+	public BatchEvaluationResponse evaluateBatch(@PathParam("orgId") String orgId, @PathParam("id") String id, BatchEvaluationRequest request){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
+
+		BatchEvaluationResponse batchResponse = new BatchEvaluationResponse(orgId + "##" + request.getId());
 
 		List<EvaluationRequest> requests = request.getRequests();
 
@@ -297,24 +283,37 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsv(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
+	public Response evaluateCsv(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
+
 		com.google.common.net.MediaType mediaType = com.google.common.net.MediaType.parse(contentType);
-
 		Charset charset = (mediaType.charset()).or(ModelResource.CHARSET_UTF8);
-
 		return doEvaluateCsv(id, delimiterChar, quoteChar, charset, is);
 	}
 
 	@POST
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsvForm(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
-		Charset charset = ModelResource.CHARSET_UTF8;
+	public Response evaluateCsvForm(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
 
+		Charset charset = ModelResource.CHARSET_UTF8;
 		return doEvaluateCsv(id, delimiterChar, quoteChar, charset, is);
 	}
 
@@ -456,12 +455,17 @@ public class ModelResource {
 	}
 
 	@DELETE
-	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
-	@RolesAllowed (
-		value = {"admin"}
-	)
+	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public SimpleResponse undeploy(@PathParam("id") String id){
+	public SimpleResponse undeploy(@PathParam("orgId") String orgId, @PathParam("id") String id){
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			id = orgId + "##" + id;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
+		}
+
 		Model model = this.modelRegistry.get(id);
 		if(model == null){
 			throw new NotFoundException("Model \"" + id + "\" not found");
@@ -608,6 +612,9 @@ public class ModelResource {
 
 	static
 	private ModelResponse createModelResponse(String id, Model model, boolean expand){
+		// split id by ## to filter out orgId
+		id = id.split("##")[1];
+
 		ModelResponse response = new ModelResponse(id);
 		response.setMiningFunction(model.getMiningFunction());
 		response.setSummary(model.getSummary());

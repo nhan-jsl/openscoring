@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: org.openscoring.service.CsvUtilTest
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.119 sec - in org.openscoring.service.CsvUtilTest
