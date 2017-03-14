@@ -43,6 +43,7 @@ import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 @Path("model")
@@ -64,17 +65,20 @@ public class ModelResource {
 	}
 
 	@GET
+	@Path("{orgId}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchModelResponse queryBatch(){
+	public BatchModelResponse queryBatch(@PathParam("orgId") String orgId){
 		BatchModelResponse batchResponse = new BatchModelResponse();
 
 		List<ModelResponse> responses = new ArrayList<>();
 
 		Collection<Map.Entry<String, Model>> entries = this.modelRegistry.entries();
 		for(Map.Entry<String, Model> entry : entries){
-			ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(), false);
-
-			responses.add(response);
+			String extractedOrgId = entry.getKey().split("##")[0];
+			if (extractedOrgId.equals(orgId)){
+				ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(),false);
+				responses.add(response);
+			}
 		}
 
 		Comparator<ModelResponse> comparator = new Comparator<ModelResponse>(){
@@ -161,7 +165,7 @@ public class ModelResource {
 				String storagePath = "/opt/models/" + orgId + "/" + id.split("##")[1] + ".pmml";
 				File file = new File(storagePath);
 				file.getParentFile().mkdirs(); // create folder based on org
-				Files.copy(is, Paths.get(storagePath));
+				Files.copy(is, Paths.get(storagePath), StandardCopyOption.REPLACE_EXISTING);
 				SimpleResponse simpleResponse = new SimpleResponse();
 				simpleResponse.setMessage("Persist this pmml successfully");
 				return Response.ok(Entity.json(simpleResponse)).build();
