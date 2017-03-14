@@ -19,8 +19,9 @@
 package org.openscoring.client;
 
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Response;
 
 public interface Operation<V> {
 
-	V perform(WebTarget target) throws Exception;
+	V perform(WebTarget target, Response authenResponse) throws Exception;
 }

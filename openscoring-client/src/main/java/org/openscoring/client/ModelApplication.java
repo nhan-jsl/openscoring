@@ -18,14 +18,15 @@
  */
 package org.openscoring.client;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.WebTarget;
-
 import com.beust.jcommander.Parameter;
 import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
 import org.glassfish.jersey.client.ClientConfig;
 import org.openscoring.common.SimpleResponse;
+import org.openscoring.common.UserResponse;
+
+import javax.ws.rs.client.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 abstract
 public class ModelApplication extends Application {
@@ -37,6 +38,22 @@ public class ModelApplication extends Application {
 	)
 	private String model = null;
 
+	@Parameter (
+			names = {"--username"},
+			description = "username for authentication",
+			required = true
+	)
+	private String username = null;
+
+	@Parameter (
+			names = {"--password"},
+			description = "password for authentication",
+			required = true
+	)
+	private String password = null;
+
+	private String authenticateEndpoint = "http://localhost:8080/openscoring/user";
+
 
 	public <V extends SimpleResponse> V execute(Operation<V> operation) throws Exception {
 		ClientConfig clientConfig = new ClientConfig();
@@ -46,9 +63,19 @@ public class ModelApplication extends Application {
 		Client client = ClientBuilder.newClient(clientConfig);
 
 		try {
-			WebTarget target = client.target(getURI());
+			// perform login here...
+			WebTarget target = client.target(authenticateEndpoint);
+			UserResponse userResponse = new UserResponse();
+			userResponse.setUsername(getUsername());
+			userResponse.setPassword(getPassword());
 
-			return operation.perform(target);
+			Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildPost(Entity.json(userResponse));
+			Response authenResponse = invocation.invoke();
+
+			// change target to model path
+			target = client.target(getURI());
+
+			return operation.perform(target, authenResponse);
 		} finally {
 			client.close();
 		}
@@ -64,5 +91,21 @@ public class ModelApplication extends Application {
 
 	public void setModel(String model){
 		this.model = model;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
 	}
 }

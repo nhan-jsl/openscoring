@@ -51,6 +51,20 @@ public class DirectoryDeployer extends Application {
 	)
 	private File dir = null;
 
+	@Parameter (
+			names = {"--username"},
+			description = "username for authentication",
+			required = true
+	)
+	private String username = null;
+
+	@Parameter (
+			names = {"--password"},
+			description = "password for authentication",
+			required = true
+	)
+	private String password = null;
+
 	/**
 	 * A set of "managed" model identifiers.
 	 */
@@ -132,6 +146,8 @@ public class DirectoryDeployer extends Application {
 			Deployer deployer = new Deployer();
 			deployer.setModel(getModelCollection() + "/" + id);
 			deployer.setFile(path.toFile());
+			deployer.setUsername(this.username);
+			deployer.setPassword(this.password);
 			deployer.run();
 
 			this.identifiers.add(id);
@@ -147,6 +163,8 @@ public class DirectoryDeployer extends Application {
 
 			Undeployer undeployer = new Undeployer();
 			undeployer.setModel(getModelCollection() + "/" + id);
+			undeployer.setUsername(this.username);
+			undeployer.setPassword(this.password);
 			undeployer.run();
 		}
 	}

@@ -18,14 +18,18 @@
  */
 package org.openscoring.client;
 
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 
 import org.openscoring.common.SimpleResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Map;
 
 public class Undeployer extends ModelApplication {
 
@@ -55,9 +59,13 @@ public class Undeployer extends ModelApplication {
 		Operation<SimpleResponse> operation = new Operation<SimpleResponse>(){
 
 			@Override
-			public SimpleResponse perform(WebTarget target){
-				Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildDelete();
+			public SimpleResponse perform(WebTarget target, Response authenResponse){
+				Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
 
+				for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+					invocationBuilder.cookie(entry.getValue().toCookie());
+				}
+				Invocation invocation = invocationBuilder.buildDelete();
 				Response response = invocation.invoke();
 
 				return response.readEntity(SimpleResponse.class);

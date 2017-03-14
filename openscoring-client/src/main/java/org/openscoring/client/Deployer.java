@@ -24,12 +24,14 @@ import java.io.IOException;
 import java.io.PushbackInputStream;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Variant;
 
@@ -71,15 +73,19 @@ public class Deployer extends ModelApplication {
 		Operation<ModelResponse> operation = new Operation<ModelResponse>(){
 
 			@Override
-			public ModelResponse perform(WebTarget target) throws IOException {
+			public ModelResponse perform(WebTarget target, Response authenResponse) throws IOException {
 
 				try(PushbackInputStream is = new PushbackInputStream(new FileInputStream(getFile()), 16)){
 					String encoding = getContentEncoding(is);
 
 					Variant variant = new Variant(MediaType.APPLICATION_XML_TYPE, (Locale)null, encoding);
 
-					Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildPut(Entity.entity(is, variant));
+					Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
 
+					for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+						invocationBuilder.cookie(entry.getValue().toCookie());
+					}
+					Invocation invocation = invocationBuilder.buildPut(Entity.entity(is, variant));
 					Response response = invocation.invoke();
 
 					return response.readEntity(ModelResponse.class);
