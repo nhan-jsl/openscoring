@@ -23,11 +23,13 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 
 import com.beust.jcommander.Parameter;
@@ -91,7 +93,7 @@ public class CsvEvaluator extends ModelApplication {
 		Operation<SimpleResponse> operation = new Operation<SimpleResponse>(){
 
 			@Override
-			public SimpleResponse perform(WebTarget target) throws Exception {
+			public SimpleResponse perform(WebTarget target, Response authenResponse) throws Exception {
 				String delimiterChar = getDelimiterChar();
 				String quoteChar = getQuoteChar();
 
@@ -106,7 +108,12 @@ public class CsvEvaluator extends ModelApplication {
 				try(InputStream is = new FileInputStream(getInput())){
 
 					try(OutputStream os = new FileOutputStream(getOutput())){
-						Invocation invocation = target.request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).buildPost(Entity.text(is));
+						Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
+
+						for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+							invocationBuilder.cookie(entry.getValue().toCookie());
+						}
+						Invocation invocation = invocationBuilder.buildPost(Entity.text(is));
 
 						Response response = invocation.invoke();
 

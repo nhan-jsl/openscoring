@@ -25,6 +25,7 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 
 import com.beust.jcommander.DynamicParameter;
@@ -65,11 +66,16 @@ public class Evaluator extends ModelApplication {
 		Operation<EvaluationResponse> operation = new Operation<EvaluationResponse>(){
 
 			@Override
-			public EvaluationResponse perform(WebTarget target) throws Exception {
+			public EvaluationResponse perform(WebTarget target, Response authenResponse) throws Exception {
 				EvaluationRequest request = new EvaluationRequest();
 				request.setArguments(getArguments());
 
-				Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildPost(Entity.json(request));
+				Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
+
+				for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+					invocationBuilder.cookie(entry.getValue().toCookie());
+				}
+				Invocation invocation = invocationBuilder.buildPost(Entity.json(request));
 
 				Response response = invocation.invoke();
 
