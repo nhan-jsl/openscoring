@@ -68,31 +68,37 @@ public class ModelResource {
 	@Path("{orgId}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public BatchModelResponse queryBatch(@PathParam("orgId") String orgId){
-		BatchModelResponse batchResponse = new BatchModelResponse();
+		Subject currentUser = SecurityUtils.getSubject();
+		String permission = orgId + ":model";
+		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+			BatchModelResponse batchResponse = new BatchModelResponse();
 
-		List<ModelResponse> responses = new ArrayList<>();
+			List<ModelResponse> responses = new ArrayList<>();
 
-		Collection<Map.Entry<String, Model>> entries = this.modelRegistry.entries();
-		for(Map.Entry<String, Model> entry : entries){
-			String extractedOrgId = entry.getKey().split("##")[0];
-			if (extractedOrgId.equals(orgId)){
-				ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(),false);
-				responses.add(response);
+			Collection<Map.Entry<String, Model>> entries = this.modelRegistry.entries();
+			for (Map.Entry<String, Model> entry : entries) {
+				String extractedOrgId = entry.getKey().split("##")[0];
+				if (extractedOrgId.equals(orgId)) {
+					ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(), false);
+					responses.add(response);
+				}
 			}
+
+			Comparator<ModelResponse> comparator = new Comparator<ModelResponse>() {
+
+				@Override
+				public int compare(ModelResponse left, ModelResponse right) {
+					return (left.getId()).compareToIgnoreCase(right.getId());
+				}
+			};
+			Collections.sort(responses, comparator);
+
+			batchResponse.setResponses(responses);
+
+			return batchResponse;
+		} else {
+			throw new NotAuthorizedException("Sorry, You don't have permission to view this content!");
 		}
-
-		Comparator<ModelResponse> comparator = new Comparator<ModelResponse>(){
-
-			@Override
-			public int compare(ModelResponse left, ModelResponse right){
-				return (left.getId()).compareToIgnoreCase(right.getId());
-			}
-		};
-		Collections.sort(responses, comparator);
-
-		batchResponse.setResponses(responses);
-
-		return batchResponse;
 	}
 
 	@GET
@@ -162,7 +168,7 @@ public class ModelResource {
 		// handle persist
 		if (persist) {
 			try {
-				String storagePath = "/opt/models/" + orgId + "/" + id.split("##")[1] + ".pmml";
+				String storagePath = "/Users/ndnhan/upworks/JohnSnowLabs/models/" + orgId + "/" + id.split("##")[1] + ".pmml";
 				File file = new File(storagePath);
 				file.getParentFile().mkdirs(); // create folder based on org
 				Files.copy(is, Paths.get(storagePath), StandardCopyOption.REPLACE_EXISTING);
