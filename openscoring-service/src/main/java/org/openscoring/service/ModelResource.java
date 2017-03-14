@@ -35,11 +35,14 @@ import org.supercsv.prefs.CsvPreference;
 import javax.annotation.security.PermitAll;
 import javax.inject.Inject;
 import javax.ws.rs.*;
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.*;
 import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 @Path("model")
@@ -113,7 +116,8 @@ public class ModelResource {
 	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.TEXT_XML})
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deploy(@PathParam("orgId") String orgId, @PathParam("id") String id, InputStream is){
+	public Response deploy(@PathParam("orgId") String orgId, @PathParam("id") String id,
+						   @DefaultValue("false") @QueryParam("persist") boolean persist, InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
 		if (!currentUser.isAuthenticated()) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -123,7 +127,7 @@ public class ModelResource {
 			if (currentUser.isPermitted(permission)) {
 				// add prefix orgId
 				id = orgId + "##" + id;
-				return doDeploy(id, is);
+				return doDeploy(id, is, persist, orgId);
 			}
 			return null;
 		}
@@ -133,7 +137,8 @@ public class ModelResource {
 	@Path("{orgId}")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deployForm(@PathParam("orgId") String orgId, @FormDataParam("id") String id, @FormDataParam("pmml") InputStream is){
+	public Response deployForm(@PathParam("orgId") String orgId, @FormDataParam("id") String id,
+							   @FormDataParam("pmml") InputStream is, @DefaultValue("false") @QueryParam("persist") boolean persist){
 		Subject currentUser = SecurityUtils.getSubject();
 		String permission = orgId + ":model";
 		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
@@ -146,10 +151,25 @@ public class ModelResource {
 			throw new BadRequestException("Invalid identifier");
 		}
 
-		return doDeploy(id, is);
+		return doDeploy(id, is, persist, orgId);
 	}
 
-	private Response doDeploy(String id, InputStream is){
+	private Response doDeploy(String id, InputStream is, boolean persist, String orgId){
+		// handle persist
+		if (persist) {
+			try {
+				String storagePath = "/opt/models/" + orgId + "/" + id.split("##")[1] + ".pmml";
+				File file = new File(storagePath);
+				file.getParentFile().mkdirs(); // create folder based on org
+				Files.copy(is, Paths.get(storagePath));
+				SimpleResponse simpleResponse = new SimpleResponse();
+				simpleResponse.setMessage("Persist this pmml successfully");
+				return Response.ok(Entity.json(simpleResponse)).build();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+
 		Model model;
 
 		try {
