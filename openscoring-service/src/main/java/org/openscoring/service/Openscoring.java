@@ -35,11 +35,12 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.filter.EncodingFilter;
 import org.glassfish.jersey.server.filter.HttpMethodOverrideFilter;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
+import org.openscoring.dao.HibernateUtil;
 
 public class Openscoring extends ResourceConfig {
 
 	public Openscoring(){
-		super(ModelResource.class, MetricResource.class, UserResource.class);
+		super(ModelResource.class, MetricResource.class, UserResource.class, RolesPermissionResource.class);
 
 		final
 		Config config = ConfigFactory.load();

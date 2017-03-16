@@ -8,6 +8,7 @@ import java.io.Serializable;
 public class UserResponse implements Serializable {
     private String username;
     private String password;
+    private String orgId;
 
     public String getUsername() {
         return username;
@@ -23,5 +24,13 @@ public class UserResponse implements Serializable {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getOrgId() {
+        return orgId;
+    }
+
+    public void setOrgId(String orgId) {
+        this.orgId = orgId;
     }
 }
