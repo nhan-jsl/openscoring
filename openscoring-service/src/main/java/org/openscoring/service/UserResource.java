@@ -21,9 +21,17 @@ package org.openscoring.service;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.*;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.shiro.crypto.RandomNumberGenerator;
+import org.apache.shiro.crypto.SecureRandomNumberGenerator;
+import org.apache.shiro.crypto.hash.Sha256Hash;
 import org.apache.shiro.subject.Subject;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.openscoring.common.SimpleResponse;
 import org.openscoring.common.UserResponse;
+import org.openscoring.dao.HibernateUtil;
+import org.openscoring.dao.model.User;
+import org.openscoring.dao.model.UserRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,13 +42,58 @@ import javax.ws.rs.core.MediaType;
 public class UserResource {
 	private static final transient Logger log = LoggerFactory.getLogger(UserResource.class);
 
-	@GET
+	@PUT
 	@Produces(MediaType.APPLICATION_JSON)
-	public UserResponse query(@PathParam("id") String id){
-		UserResponse user = new UserResponse();
-		user.setUsername("ndnhan");
-		user.setPassword("secret");
-		return user;
+	public SimpleResponse register(UserResponse suppliedUser){
+		Subject currentUser = SecurityUtils.getSubject();
+		if (currentUser.isAuthenticated() && currentUser.hasRole("admin")) {
+			SimpleResponse simpleResponse = new SimpleResponse();
+			try {
+				User user = new User();
+				user.setUsername(suppliedUser.getUsername());
+				user.setOrgId(suppliedUser.getOrgId());
+				// below method will set password & salt for this User obj
+				generatePassword(user, suppliedUser.getPassword());
+
+				Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+				Transaction tx = session.beginTransaction();
+				session.save(user);
+				tx.commit();
+
+				simpleResponse.setMessage("create user successfully");
+				return simpleResponse;
+			}
+			catch (Exception e) {
+				simpleResponse.setMessage("create user not successfully! Error: [" + e.getMessage() + "]");
+				return simpleResponse;
+			}
+		} else {
+			throw new NotAuthorizedException("Sorry, only admin user can add user! Contact administrator please!");
+		}
+	}
+
+	@PUT
+	@Path("/role")
+	@Produces(MediaType.APPLICATION_JSON)
+	public SimpleResponse addRole(UserRole userRole) {
+		Subject currentUser = SecurityUtils.getSubject();
+		if (currentUser.isAuthenticated() && currentUser.hasRole("admin")) {
+			SimpleResponse simpleResponse = new SimpleResponse();
+			try {
+				Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+				Transaction tx = session.beginTransaction();
+				session.persist(userRole);
+				tx.commit();
+				simpleResponse.setMessage("add role [" + userRole.getRoleName() + "] to user [" + userRole.getUsername() + "] successfully");
+				return simpleResponse;
+			}
+			catch (Exception e) {
+				simpleResponse.setMessage("add role not successfully! Error: [" + e.getMessage() + "]");
+				return simpleResponse;
+			}
+		} else {
+			throw new NotAuthorizedException("Sorry, only admin user can add role to user! Contact administrator please!");
+		}
 	}
 
 	@POST
@@ -87,6 +140,18 @@ public class UserResource {
 		}
 
 		return simpleResponse;
+	}
+
+	private void generatePassword(User user, String plainTextPassword) {
+		RandomNumberGenerator rng = new SecureRandomNumberGenerator();
+		Object salt = rng.nextBytes();
+
+		// Now hash the plain-text password with the random salt and multiple
+		// iterations and then Base64-encode the value (requires less space than Hex):
+		String hashedPasswordBase64 = new Sha256Hash(plainTextPassword, salt,1024).toBase64();
+
+		user.setPassword(hashedPasswordBase64);
+		user.setSalt(salt.toString());
 	}
 
 }
