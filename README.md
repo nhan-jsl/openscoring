@@ -1,90 +1,105 @@
-Openscoring [![Build Status](https://travis-ci.org/openscoring/openscoring.png?branch=master)](https://travis-ci.org/openscoring/openscoring)
-===========
+Openscoring - extension version
+=============
 
-REST web service for scoring PMML models.
+REST web service for scoring PMML models, with authenticaion/authorization and multi-tenancy capabilities.
+
+This version is an extension of openscoring project to provide the capabilities of authentication, authorization and multi-tenancy.
+The original version of Openscoring is at: https://github.com/openscoring/openscoring. This document extended from the original openscoring's README.md serves this extended openscoring version only, for the purposes of running openscoring with multi-tenancy with authentication and authorization.
+
 
 # Features #
+* All features that openscoring offers.
+* Authentication and authorization.
+* Persist models to file system.
+* Multi-tenancy: host multiple tenants and allow the tenant to serve only its users.
 
-* Full support for PMML specification versions 3.0 through 4.3. The evaluation is handled by the [JPMML-Evaluator] (https://github.com/jpmml/jpmml-evaluator) library.
-* Simple and powerful REST API:
-  * Model deployment and undeployment.
-  * Model evaluation in single prediction, batch prediction and CSV prediction modes.
-  * Model metrics.
-* High performance and high throughput:
-  * Sub-millisecond response times.
-  * Request and response compression using `gzip` and `deflate` encodings.
-  * Thread safe.
-* Open, extensible architecture for easy integration with proprietary systems and services:
-  * User authentication and authorization.
-  * Metrics dashboards.
-
-# Installation and Usage #
-
+# Install and Usage #
 The project requires Java 1.7 or newer to run.
 
-Enter the project root directory and build using [Apache Maven] (http://maven.apache.org/):
+Enter the project root directory and build using Apache Maven:
 ```
 mvn clean install
 ```
-
-The example PMML file `DecisionTreeIris.pmml` along with example JSON and CSV files can be found in the `openscoring-service/src/etc` directory.
+The example PMML file DecisionTreeIris.pmml along with example JSON and CSV files can be found in the openscoring-service/src/etc directory.
 
 ### Server side
+The server side requires a precreated directory for model storage, in which subdirectories, one per tenant, must be created before starting server. The subdirectory name matches with the tenant id (you create this id), which will be used as authorization permission for user (More below about authentication for web application).
 
-##### Standalone application
+The server side requires starting:
+* One web application (and setup users/roles for the first time).
+* Multiple model deployer (openscoring-client) instances, one per tenant, on the same host instances with the web application. These instances will deploy models and track changes in the tenant's model storage directories.
 
-The build produces an executable uber-JAR file `openscoring-server/target/server-executable-1.3-SNAPSHOT.jar`. Change the working directory to `openscoring-server` and execute the following command:
-```
-java -jar target/server-executable-1.3-SNAPSHOT.jar
-```
-
-By default, the REST web service is started at [http://localhost:8080/openscoring] (http://localhost:8080/openscoring/). The main class `org.openscoring.server.Main` accepts a number of configuration options for URI customization and other purposes. Please specify `--help` for more information.
-
-The working directory contains a sample Java logging configuration file `logging.properties.sample` that should be copied over to a new file `logging.properties` and customized to current needs. A Java logging configuration file can be imposed on the JVM by defining the `java.util.logging.config.file` system property:
-```
-java -Djava.util.logging.config.file=logging.properties -jar target/server-executable-1.3-SNAPSHOT.jar
-```
-
-Additionally, the working directory contains a sample Typesafe's Config configuration file `application.conf.sample` that should be copied over to a new file `application.conf` and customized to current needs. This local configuration file can be imposed on the JVM by defining the `config.file` system property:
-```
-java -Dconfig.file=application.conf -jar target/server-executable-1.3-SNAPSHOT.jar
-```
-
-The local configuration file overrides the default configuration that is defined in the reference REST web service configuration file `openscoring-service/src/main/reference.conf`. For example, the following configuration file selectively overrides the list-valued `modelRegistry.visitorClasses` property:
-```
-modelRegistry {
-	visitorClasses = [
-		"org.jpmml.model.visitors.LocatorNullifier" // Erases SAX Locator information from the PMML class model object, which will considerably reduce the memory consumption of deployed models
-	]
-}
-```
-
-##### Web application
-
+##### Start web application and setup authentication/authorization
 The build produces a WAR file `openscoring-webapp/target/openscoring-webapp-1.3-SNAPSHOT.war`. This WAR file can be deployed using any Java web container.
+
+###### Setup database for storing authentication information (for the first time only)
+=====TODO: complete this description====
+
+You must bee able to create a database on a RDBMS to store authentication and authorization information. In our example, we use mysql but you can use database of your choice.
+* Create a database (for example: test) to store authentication information.
+* In the created database, create 3 tables with string columns like below:
+   - User(username, password, salt, orgId)
+   - RolesPermission(permission, rolename)
+   - UserRole(roleName, username)
+* Open file `openscoring-service/src/main/resources/hibernate.cfg.xml`. Edit the database connection infomation to the database you created in previous step.
 
 The web application can be launced using [Jetty Maven Plugin] (http://eclipse.org/jetty/documentation/current/jetty-maven-plugin.html). Change the working directory to `openscoring-webapp` and execute the following command:
 ```
 mvn jetty:run-war
 ```
 
-### Client side
+###### Create users/roles
+Authentication & authorization functions on openscoring is developed based on 2 java frameworks:
+* Apache Shiro
+* Apache Hibernate
 
-The build produces an executable uber-JAR file `openscoring-client/target/client-executable-1.3-SNAPSHOT.jar`. Change the working directory to `openscoring-client` and replay the life cycle of a sample `DecisionTreeIris` model (in "REST API", see below) by executing the following sequence of commands:
+We used Hibernate to provide functions for persist/update/get user information as well as user roles and role permissions. And Apache Shiro with our customize Realm to perform authenticate & authorize based on supplied principal & credential from the database through Hibernate. 
+To make it easier to understand, let assume that our multi-tenancy openscoring provides model services for 2 companies called companyX & companyY. And each company will have some users who can deploy/evaluate/undeploy model for on their company only. 
+
+* When web application running for the 1st time, admin account with default password ‘secret’ will be created.
 ```
-java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.Deployer --model http://localhost:8080/openscoring/model/DecisionTreeIris --file DecisionTreeIris.pmml
-
-java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.Evaluator --model http://localhost:8080/openscoring/model/DecisionTreeIris -XSepal_Length=5.1 -XSepal_Width=3.5 -XPetal_Length=1.4 -XPetal_Width=0.2
-
-java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.CsvEvaluator --model http://localhost:8080/openscoring/model/DecisionTreeIris --input input.csv --output output.csv
-
-java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.Undeployer --model http://localhost:8080/openscoring/model/DecisionTreeIris
+POST http://localhost:8080/openscoring/user
+{
+  "username" : "admin",
+  "password" : "secret"
+}
 ```
+* Only admin account can create user, role permission, and add role to user. So, after login with admin account, we will create user first
+* Create new user for companyX
+```
+PUT http://localhost:8080/openscoring/user
+{
+  	"username" : "userx",
+    "password" : "secret",
+  	"orgId": "companyX"
+}
+```
+* Create new role & permission belong to this role
+```
+PUT http://localhost:8080/openscoring/role
+{
+	"roleName": "companyXdev",
+	"permission": "companyX:model"
+}
+```
+* Add role to user
+```
+PUT http://localhost:8080/openscoring/user/role
+{
+	"roleName": "companyXdev",
+	"username": "userx"
+}
+```
+* Repeat step 3 -> 5 to create for user usery with roleName = companyYdev, with permission companyY:model.
 
-Additionally, this JAR file contains an application class `org.openscoring.client.DirectoryDeployer`, which monitors the specified directory for PMML file addition and removal events:
-```
-java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.DirectoryDeployer --model-collection http://localhost:8080/openscoring/model --dir pmml
-```
+Notice that currently we have just supported permission having format structure <tenantId>:model. It mean that if user have permission companyX:model, he/she will have all privileges to create/update/delete/persist model on companyX. 
+
+
+##### Start model deployer
+Once the web application starts and the users are setup, start multiple openscoring clients serving as model deployers for tenants. For each tenant, the model deployer is started as follow:
+* Change the working directory to `openscoring-client`
+* java -cp target/client-executable-1.3-SNAPSHOT.jar org.openscoring.client.DirectoryDeployer --dir <path_to_model_storage_directory_of_the_tenant> --model-collection http://localhost:8080/openscoring/model/<tenant_id> --username <user_name> --password <password>
+
 
 # REST API #
 
@@ -94,398 +109,46 @@ Model REST API endpoints:
 
 | HTTP method | Endpoint | Required role(s) | Description |
 | ----------- | -------- | ---------------- | ----------- |
-| GET | /model | - | Get the summaries of all models |
-| POST | /model | admin | Deploy a model |
-| PUT | /model/${id} | admin | Deploy a model |
-| GET | /model/${id} | - | Get the summary of a model |
-| GET | /model/${id}/pmml | admin | Download a model as a PMML document |
-| POST | /model/${id} | - | Evaluate data in "single prediction" mode |
-| POST | /model/${id}/batch | - | Evaluate data in "batch prediction" mode |
-| POST | /model/${id}/csv | - | Evaluate data in "CSV prediction" mode |
-| DELETE | /model/${id} | admin | Undeploy a model |
+| POST | /user | - | User login |
+| DELETE | /user | - | User logout |
+| GET | /model/${tenant_id} | - | Get the summaries of all models |
+| POST | /model/${tenant_id}/${id} | - | Deploy a model |
+| PUT | /model/${tenant_id}/${model_id}?persist=tru | - | Deploy a model and persist to tenant's model storage|
+| GET | /model/${tenant_id}/${model_id} | - | Get the summary of a model |
+| GET | /model/${tenant_id}/${model_id}/pmml | - | Download a model as a PMML document |
+| POST | /model/${tenant_id}/${model_id} | - | Evaluate data in "single prediction" mode |
+| POST | /model/${tenant_id}/${model_id}/batch | - | Evaluate data in "batch prediction" mode |
+| POST | /model/${tenant_id}/${model_id}/csv | - | Evaluate data in "CSV prediction" mode |
+| DELETE | /model/${tenant_id}/${model_id} | - | Undeploy a model |
 
-Metric REST API endpoints:
 
-| HTTP method | Endpoint | Required role(s) | Description |
-| ----------- | -------- | ---------------- | ----------- |
-| GET | /metric/model | admin | Get the metric sets of all models |
-| GET | /metric/model/${id} | admin | Get the metric set of a model |
+Most of the details of the API remains the same as the original openscoring. The only different is the URL which must contain the tenant_id.
+For example: a get command to list all models should be made with:
+`curl -X GET 'http://localhost:8080/openscoring/model/companyX'`
 
-By default, the "admin" role is granted to all HTTP requests that originate from the local network address.
+Get command to get a DecisionTreeIris model:
+`curl -X GET http://localhost:8080/openscoring/model/companyX/DecisionTreeIris`
 
-In case of an error (ie. response status codes 4XX or 5XX), the response body is a JSON serialized form of an `org.openscoring.common.SimpleResponse`  [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/SimpleResponse.java) object.
+One can just refer to the original openscoring document and modify the URL accordingly.
 
-Java clients may use the following idiom to check if an operation succeeded or failed:
-```java
-ModelResponse response = ...;
+### User authentication
+Login
+`curl -H "Content-Type: application/json" -X POST -d '{"username":"xyz","password":"xyz"}' http://localhost:8080/openscoring/user`
 
-// The error condition is encoded by initializing the "message" field and leaving all other fields uninitialized
-String message = response.getMessage();
-if(message != null){
-	throw new RuntimeException(message);
-}
-
-// Proceed as usual
-```
+Logout
+curl -X DELETE `http://localhost:8080/openscoring/user`
 
 ### Model deployment
+Similar to original openscoring but add orgId to the url
+=====TODO: describe the endpoint and give examples====
 
-##### PUT /model/${id}
-
-Creates or updates a model.
-
-The request body is a PMML document (indicated by content-type header `text/xml` or `application/xml`).
-
-The response body is a JSON serialized form of an `org.openscoring.common.ModelResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/ModelResponse.java) object.
-
-Response status codes:
-* 200 OK. The model was updated.
-* 201 Created. A new model was created.
-* 400 Bad Request. The deployment failed permanently. The request body is not a valid and/or supported PMML document.
-* 403 Forbidden. The acting user does not have an "admin" role.
-* 500 Internal Server Error. The deployment failed temporarily.
-
-Sample cURL invocation:
-```
-curl -X PUT --data-binary @DecisionTreeIris.pmml -H "Content-type: text/xml" http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-The same, using the `gzip` encoding:
-```
-curl -X PUT --data-binary @DecisionTreeIris.pmml.gz -H "Content-encoding: gzip" -H "Content-type: text/xml" http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-### Model querying
-
-##### GET /model
-
-Gets the summaries of all models.
-
-The response body is a JSON serialized form of an `org.openscoring.common.BatchModelResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/BatchModelResponse.java) object.
-
-Response status codes:
-* 200 OK. The model collection was queried.
-
-Sample cURL invocation:
-```
-curl -X GET http://localhost:8080/openscoring/model
-```
-
-##### GET /model/${id}
-
-Gets the summary of a model.
-
-The response body is a JSON serialized form of an `org.openscoring.common.ModelResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/ModelResponse.java) object.
-
-Response status codes:
-* 200 OK. The model was queried.
-* 404 Not Found. The requested model was not found.
-
-Sample cURL invocation:
-```
-curl -X GET http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-Sample response:
-```json
-{
-	"id" : "DecisionTreeIris",
-	"miningFunction" : "classification",
-	"summary" : "Tree model",
-	"properties" : {
-		"created.timestamp" : "2015-03-17T12:41:35.933+0000",
-		"accessed.timestamp" : "2015-03-21T09:35:58.582+0000",
-		"file.size" : 4918,
-		"file.md5sum" : "870e1a7931d39f919fe3c02556bf6241"
-	},
-	"schema" : {
-		"activeFields" : [
-			{
-				"id" : "Sepal_Length",
-				"name" : "Sepal length in cm",
-				"dataType" : "double",
-				"opType" : "continuous",
-				"values" : [ "[4.3, 7.9]" ]
-			},
-			{
-				"id" : "Sepal_Width",
-				"name" : "Sepal width in cm",
-				"dataType" : "double",
-				"opType" : "continuous",
-				"values" : [ "[2.0, 4.4]" ]
-			},
-			{
-				"id" : "Petal_Length",
-				"name" : "Petal length in cm",
-				"dataType" : "double",
-				"opType" : "continuous",
-				"values" : [ "[1.0, 6.9]" ]
-			},
-			{
-				"id" : "Petal_Width",
-				"name" : "Petal width in cm",
-				"dataType" : "double",
-				"opType" : "continuous",
-				"values" : [ "[0.1, 2.5]" ]
-			}
-		],
-		"groupFields" : [],
-		"targetFields" : [
-			{
-				"id" : "Species",
-				"dataType" : "string",
-				"opType" : "categorical",
-				"values" : [ "setosa", "versicolor", "virginica" ]
-			}
-		],
-		"outputFields" : [
-			{
-				"id" : "Probability_setosa",
-				"dataType" : "double",
-				"opType" : "continuous"
-			},
-			{
-				"id" : "Probability_versicolor",
-				"dataType" : "double",
-				"opType" : "continuous"
-			},
-			{
-				"id" : "Probability_virginica",
-				"dataType" : "double",
-				"opType" : "continuous"
-			},
-			{
-				"id" : "Node_Id",
-				"dataType" : "string",
-				"opType" : "categorical"
-			}
-		]
-	}
-}
-```
-
-Field definitions are retrieved from the [MiningSchema] (http://www.dmg.org/v4-2-1/MiningSchema.html) and [Output] (http://www.dmg.org/v4-2-1/Output.html) elements of the PMML document. The active and group fields relate to the `arguments` attribute of the evaluation request, whereas the target and output fields relate to the `result` attribute of the evaluation response (see below).
-
-##### GET /model/${id}/pmml
-
-Downloads a model.
-
-The response body is a PMML document.
-
-Response status codes:
-* 200 OK. The model was downloaded.
-* 403 Forbidden. The acting user does not have an "admin" role.
-* 404 Not Found. The requested model was not found.
-
-Sample cURL invocation:
-```
-curl -X GET http://localhost:8080/openscoring/model/DecisionTreeIris/pmml
-```
+### Model query
+Similar to original openscoring but add orgId to the url
+=====TODO: describe the endpoint and give examples====
 
 ### Model evaluation
-
-##### POST /model/${id}
-
-Evaluates data in "single prediction" mode.
-
-The request body is a JSON serialized form of an `org.openscoring.common.EvaluationRequest` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/EvaluationRequest.java) object.
-
-The response body is a JSON serialized form of an `org.openscoring.common.EvaluationResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/EvaluationResponse.java) object.
-
-Response status codes:
-* 200 OK. The evaluation was successful.
-* 400 Bad Request. The evaluation failed permanently due to missing or invalid input data.
-* 404 Not Found. The requested model was not found.
-* 500 Internal Server Error. The evaluation failed temporarily.
-
-Sample cURL invocation:
-```
-curl -X POST --data-binary @EvaluationRequest.json -H "Content-type: application/json" http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-Sample request:
-```json
-{
-	"id" : "record-001",
-	"arguments" : {
-		"Sepal_Length" : 5.1,
-		"Sepal_Width" : 3.5,
-		"Petal_Length" : 1.4,
-		"Petal_Width" : 0.2
-	}
-}
-```
-
-Sample response:
-```json
-{
-	"id" : "record-001",
-	"result" : {
-		"Species" : "setosa",
-		"Probability_setosa" : 1.0,
-		"Probability_versicolor" : 0.0,
-		"Probability_virginica" : 0.0,
-		"Node_Id" : "2"
-	}
-}
-```
-
-##### POST /model/${id}/batch
-
-Evaluates data in "batch prediction" mode.
-
-The request body is a JSON serialized form of an `org.openscoring.common.BatchEvaluationRequest` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/BatchEvaluationRequest.java) object.
-
-The response body is a JSON serialized form of an `org.openscoring.common.BatchEvaluationResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/BatchEvaluationResponse.java) object.
-
-Response status codes:
-* 200 OK. The evaluation was successful.
-* 400 Bad Request. The evaluation failed permanently due to missing or invalid input data.
-* 404 Not Found. The requested model was not found.
-* 500 Internal Server Error. The evaluation failed temporarily.
-
-Sample cURL invocation:
-```
-curl -X POST --data-binary @BatchEvaluationRequest.json -H "Content-type: application/json" http://localhost:8080/openscoring/model/DecisionTreeIris/batch
-```
-
-The evaluation is performed at "record" isolation level. If the evaluation of some `org.openscoring.common.EvaluationRequest` object fails, then the corresponding `org.openscoring.common.EvaluationResponse` object encodes the error condition (see above).
-
-##### POST /model/${id}/csv
-
-Evaluates data in "CSV prediction" mode.
-
-The request body is a CSV document (indicated by content-type header `text/plain`). The data table must contain a data column for every active and group field. The ordering of data columns is not significant, because they are mapped to fields by name.
-
-The CSV reader component detects the CSV dialect by probing `,`, `;` and `\t` as CSV delimiter characters. This detection functionality can be suppressed by supplying the value of the CSV delimiter character using the `delimiterChar` query parameter.
-
-The response body is a CSV document. The data table contains a data column for every target and output field.
-
-The first data column can be employed for row identification purposes. It will be copied over from the request data table to the response data table if its name equals to "Id" (the comparison is case insensitive) and the number of rows did not change during the evaluation.
-
-Response status codes:
-* 200 OK. The evaluation was successful.
-* 400 Bad request. The evaluation failed permanently. The request body is not a valid and/or supported CSV document, or it contains cells with missing or invalid input data.
-* 404 Not Found. The requested model was not found.
-* 500 Internal Server Error. The evaluation failed temporarily.
-
-Sample cURL invocation:
-```
-curl -X POST --data-binary @input.csv -H "Content-type: text/plain; charset=UTF-8" http://localhost:8080/openscoring/model/DecisionTreeIris/csv > output.csv
-```
-
-The same, using the `gzip` encoding:
-```
-curl -X POST --data-binary @input.csv.gz -H "Content-encoding: gzip" -H "Content-type: text/plain; charset=UTF-8" -H "Accept-encoding: gzip" http://localhost:8080/openscoring/model/DecisionTreeIris/csv > output.csv.gz
-```
-
-Sample request:
-```
-Id,Sepal_Length,Sepal_Width,Petal_Length,Petal_Width
-record-001,5.1,3.5,1.4,0.2
-record-002,7,3.2,4.7,1.4
-record-003,6.3,3.3,6,2.5
-```
-
-Sample response:
-```
-Id,Species,Probability_setosa,Probability_versicolor,Probability_virginica,Node_Id
-record-001,setosa,1.0,0.0,0.0,2
-record-002,versicolor,0.0,0.9074074074074074,0.09259259259259259,6
-record-003,virginica,0.0,0.021739130434782608,0.9782608695652174,7
-```
-
-The evaluation is performed at "all-records-or-nothing" isolation level. If the evaluation of some row fails, then the whole CSV document fails.
+Similar to original openscoring but add orgId to the url
+=====TODO: describe the endpoint and give examples====
 
 ### Model undeployment
-
-##### DELETE /model/${id}
-
-Deletes a model.
-
-The response body is a JSON serialized form of an `org.openscoring.common.SimpleResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/SimpleResponse.java) object.
-
-Response status codes:
-* 200 OK. The model was deleted.
-* 403 Forbidden. The acting user does not have an "admin" role.
-* 404 Not Found. The requested model was not found.
-* 500 Internal Server Error. The undeployment failed temporarily.
-
-Sample cURL invocation:
-```
-curl -X DELETE http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-An HTTP PUT or DELETE method can be masked as an HTTP POST method by using the [HTTP method override mechanism] (https://jersey.java.net/apidocs/latest/jersey/org/glassfish/jersey/server/filter/HttpMethodOverrideFilter.html).
-
-Sample cURL invocation that employs the `X-HTTP-Method-Override` request header:
-```
-curl -X POST -H "X-HTTP-Method-Override: DELETE" http://localhost:8080/openscoring/model/DecisionTreeIris
-```
-
-Sample cURL invocation that employs the `_method` query parameter:
-```
-curl -X POST http://localhost:8080/openscoring/model/DecisionTreeIris?_method=DELETE
-```
-
-### Metric querying
-
-##### GET /metric/model/${id}
-
-Gets the snapshot of the metric set of a model.
-
-The response body is a JSON serialized form of an `org.openscoring.common.MetricSetResponse` [(source)] (https://github.com/jpmml/openscoring/blob/master/openscoring-common/src/main/java/org/openscoring/common/MetricSetResponse.java) object.
-
-Response status codes:
-* 200 OK. The evaluation was successful.
-* 403 Forbidden. The acting user does not have an "admin" role.
-* 404 Not Found. The requested model was not found.
-
-Sample cURL invocation:
-```
-curl -X GET http://localhost:8080/openscoring/metric/model/DecisionTreeIris
-```
-
-Sample response:
-```json
-{
-	"version" : "3.0.0",
-	"counters" : {
-		"records" : {
-			"count" : 1
-		}
-	},
-	"gauges" : { },
-	"histograms" : { },
-	"meters" : { },
-	"timers" : {
-		"evaluate" : {
-			"count" : 1,
-			"max" : 0.008521913,
-			"mean" : 0.008521913,
-			"min" : 0.008521913,
-			"p50" : 0.008521913,
-			"p75" : 0.008521913,
-			"p95" : 0.008521913,
-			"p98" : 0.008521913,
-			"p99" : 0.008521913,
-			"p999" : 0.008521913,
-			"stddev" : 0.0,
-			"m15_rate" : 0.19237151525464488,
-			"m1_rate" : 0.11160702915400945,
-			"m5_rate" : 0.17797635419760474,
-			"mean_rate" : 0.023793073545863026,
-			"duration_units" : "seconds",
-			"rate_units" : "calls/second"
-		}
-	}
-}
-```
-
-# License #
-
-Openscoring is licensed under the [GNU Affero General Public License (AGPL) version 3.0] (http://www.gnu.org/licenses/agpl-3.0.html). Other licenses are available on request.
-
-# Additional information #
-
-Please contact [info@openscoring.io] (mailto:info@openscoring.io)
+=====TODO: describe the endpoint and give examples====
