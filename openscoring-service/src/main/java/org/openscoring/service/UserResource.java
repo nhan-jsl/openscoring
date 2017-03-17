@@ -34,15 +34,6 @@ import javax.ws.rs.core.MediaType;
 public class UserResource {
 	private static final transient Logger log = LoggerFactory.getLogger(UserResource.class);
 
-	@GET
-	@Produces(MediaType.APPLICATION_JSON)
-	public UserResponse query(@PathParam("id") String id){
-		UserResponse user = new UserResponse();
-		user.setUsername("ndnhan");
-		user.setPassword("secret");
-		return user;
-	}
-
 	@POST
 	@Produces(MediaType.APPLICATION_JSON)
 	public SimpleResponse authenticate(UserResponse user){
