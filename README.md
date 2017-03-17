@@ -55,9 +55,9 @@ orgxdev = orgx:model
 orgydev = orgy:model
 ```
 
-The web application can be launced using [Jetty Maven Plugin] (http://eclipse.org/jetty/documentation/current/jetty-maven-plugin.html). Change the working directory to `openscoring-webapp` and execute the following command:
+The web application can be launced using [Jetty Maven Plugin] (http://eclipse.org/jetty/documentation/current/jetty-maven-plugin.html). Change the working directory to `openscoring-webapp` and execute the following command, please do NOT forget set storagePath system parameter for configure path to store pmml files.
 ```
-mvn jetty:run-war
+mvn jetty:run-war -DstoragePath=/path/to/store/pmml
 ```
 
 ##### Start model deployer
