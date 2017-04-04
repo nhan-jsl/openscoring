@@ -18,10 +18,6 @@
  */
 package org.openscoring.service;
 
-import java.util.List;
-
-import javax.inject.Singleton;
-
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
 import com.typesafe.config.Config;
@@ -35,6 +31,9 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.filter.EncodingFilter;
 import org.glassfish.jersey.server.filter.HttpMethodOverrideFilter;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
+
+import javax.inject.Singleton;
+import java.util.List;
 
 public class Openscoring extends ResourceConfig {
 
@@ -90,6 +89,12 @@ public class Openscoring extends ResourceConfig {
 			}
 
 			register(clazz);
+		}
+
+		// check system paramter storagePath had been inputted or not
+		String storagePathProp = System.getProperty("storagePath");
+		if (storagePathProp == null) {
+			throw new IllegalArgumentException("Server had started without set storagePath parameter!");
 		}
 	}
 }

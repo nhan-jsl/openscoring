@@ -168,15 +168,20 @@ public class ModelResource {
 		// handle persist
 		if (persist) {
 			try {
-				String storagePath = System.getProperty("storagePath") + orgId + "/" + id.split("##")[1] + ".pmml";
+				String storagePathProp = System.getProperty("storagePath");
+				if (!storagePathProp.endsWith("/")) {
+					storagePathProp = storagePathProp + "/";
+				}
+				String storagePath = storagePathProp + orgId + "/" + id.split("##")[1] + ".pmml";
 				File file = new File(storagePath);
 				file.getParentFile().mkdirs(); // create folder based on org
 				Files.copy(is, Paths.get(storagePath), StandardCopyOption.REPLACE_EXISTING);
 				SimpleResponse simpleResponse = new SimpleResponse();
 				simpleResponse.setMessage("Persist this pmml successfully");
 				return Response.ok(Entity.json(simpleResponse)).build();
-			} catch (IOException e) {
-				e.printStackTrace();
+			} catch (Exception e) {
+				logger.error("Failed to persist PMML document", e);
+				throw new InternalServerErrorException(e.getMessage());
 			}
 		}
 

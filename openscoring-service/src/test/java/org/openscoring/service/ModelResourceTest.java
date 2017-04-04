@@ -53,6 +53,7 @@ public class ModelResourceTest extends JerseyTest {
 
 	@Override
 	protected Application configure(){
+		System.setProperty("storagePath", "./");
 		Openscoring openscoring = new Openscoring();
 
 		return openscoring;
