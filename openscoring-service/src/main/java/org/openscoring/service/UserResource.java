@@ -21,6 +21,8 @@ package org.openscoring.service;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.*;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.apache.shiro.mgt.RealmSecurityManager;
+import org.apache.shiro.realm.Realm;
 import org.apache.shiro.subject.Subject;
 import org.openscoring.common.SimpleResponse;
 import org.openscoring.common.UserResponse;
@@ -29,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import java.util.Collection;
 
 @Path("user")
 public class UserResource {
@@ -74,6 +77,14 @@ public class UserResource {
 		}
 		else {
 			currentUser.logout();
+			// after logout - handle clear roles
+			RealmSecurityManager mgr = (RealmSecurityManager) SecurityUtils.getSecurityManager();
+			Collection<Realm> realmCollection = mgr.getRealms();
+			for (Realm realm : realmCollection) {
+				if (realm instanceof JohnSnowLabLDAPRealm) {
+					((JohnSnowLabLDAPRealm) realm).refeshRole();
+				}
+			}
 			simpleResponse.setMessage("Logout successfully");
 		}
 

@@ -19,6 +19,10 @@
 package org.openscoring.service;
 
 import com.google.common.collect.Maps;
+import org.apache.shiro.mgt.RealmSecurityManager;
+import org.apache.shiro.realm.AuthorizingRealm;
+import org.apache.shiro.realm.Realm;
+import org.apache.shiro.subject.Subject;
 import org.dmg.pmml.FieldName;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.media.multipart.FormDataBodyPart;
@@ -39,6 +43,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.shiro.SecurityUtils;
@@ -76,9 +81,26 @@ public class ModelResourceTest extends JerseyTest {
 		SecurityManager securityManager = factory.getInstance();
 		SecurityUtils.setSecurityManager(securityManager);
 		UserResponse user = new UserResponse();
+		user.setUsername("nhanndY");
+		user.setPassword("secret");
+		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
+		Subject currentUser = SecurityUtils.getSubject();
+
+		currentUser.logout();
+
+		// after logout - handle clear roles
+		RealmSecurityManager mgr = (RealmSecurityManager) SecurityUtils.getSecurityManager();
+		Collection<Realm> realmCollection = mgr.getRealms();
+		for (Realm realm : realmCollection) {
+			if (realm instanceof JohnSnowLabLDAPRealm) {
+				((JohnSnowLabLDAPRealm) realm).refeshRole();
+			}
+		}
+
 		user.setUsername("nhanndX");
 		user.setPassword("secret");
 		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
+		currentUser = SecurityUtils.getSubject();
 
 		assertEquals("Iris", extractSuffix(id));
 

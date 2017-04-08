@@ -69,8 +69,8 @@ public class ModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public BatchModelResponse queryBatch(@PathParam("orgId") String orgId){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			BatchModelResponse batchResponse = new BatchModelResponse();
 
 			List<ModelResponse> responses = new ArrayList<>();
@@ -106,8 +106,8 @@ public class ModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public ModelResponse query(@PathParam("orgId") String orgId, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to view this content!");
@@ -133,8 +133,8 @@ public class ModelResource {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		} else {
 			// user authenticated... we need check user have permission to put model on this orgId or not
-			String permission = orgId + ":model";
-			if (currentUser.isPermitted(permission)) {
+			String role = orgId + "dev";
+			if (currentUser.hasRole(role)) {
 				// add prefix orgId
 				id = orgId + "##" + id;
 				return doDeploy(id, is, persist, orgId);
@@ -150,8 +150,8 @@ public class ModelResource {
 	public Response deployForm(@PathParam("orgId") String orgId, @FormDataParam("id") String id,
 							   @FormDataParam("pmml") InputStream is, @DefaultValue("false") @QueryParam("persist") boolean persist){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -230,8 +230,8 @@ public class ModelResource {
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_XML})
 	public Response download(@PathParam("orgId") String orgId, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -279,8 +279,8 @@ public class ModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public EvaluationResponse evaluate(@PathParam("orgId") String orgId, @PathParam("id") String id, EvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -299,8 +299,8 @@ public class ModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public BatchEvaluationResponse evaluateBatch(@PathParam("orgId") String orgId, @PathParam("id") String id, BatchEvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -323,8 +323,8 @@ public class ModelResource {
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
 	public Response evaluateCsv(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -341,8 +341,8 @@ public class ModelResource {
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
 	public Response evaluateCsvForm(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
@@ -494,8 +494,8 @@ public class ModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public SimpleResponse undeploy(@PathParam("orgId") String orgId, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String permission = orgId + ":model";
-		if (currentUser.isAuthenticated() && currentUser.isPermitted(permission)) {
+		String role = orgId + "dev";
+		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
 			id = orgId + "##" + id;
 		} else {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
