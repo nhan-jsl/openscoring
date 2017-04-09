@@ -81,30 +81,18 @@ public class ModelResourceTest extends JerseyTest {
 		SecurityManager securityManager = factory.getInstance();
 		SecurityUtils.setSecurityManager(securityManager);
 		UserResponse user = new UserResponse();
-		user.setUsername("nhanndY");
+		user.setUsername("super");
 		user.setPassword("secret");
 		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
-		Subject currentUser = SecurityUtils.getSubject();
-
-		currentUser.logout();
-
-		// after logout - handle clear roles
-		RealmSecurityManager mgr = (RealmSecurityManager) SecurityUtils.getSecurityManager();
-		Collection<Realm> realmCollection = mgr.getRealms();
-		for (Realm realm : realmCollection) {
-			if (realm instanceof JohnSnowLabLDAPRealm) {
-				((JohnSnowLabLDAPRealm) realm).refeshRole();
-			}
-		}
-
-		user.setUsername("nhanndX");
-		user.setPassword("secret");
-		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
-		currentUser = SecurityUtils.getSubject();
 
 		assertEquals("Iris", extractSuffix(id));
 
 		deploy(id);
+
+		SecurityUtils.getSubject().logout();
+		user.setUsername("nhannd");
+		user.setPassword("secret");
+		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
 
 		download(id);
 
@@ -121,7 +109,7 @@ public class ModelResourceTest extends JerseyTest {
 
 		BatchEvaluationResponse batchResponse = evaluateBatch(id, batchRequest);
 
-		assertEquals("orgx##" + batchRequest.getId(), batchResponse.getId());
+		assertEquals(batchRequest.getId(), batchResponse.getId());
 
 		List<EvaluationResponse> responses = batchResponse.getResponses();
 
@@ -133,6 +121,11 @@ public class ModelResourceTest extends JerseyTest {
 		assertEquals(invalidRequest.getId(), invalidResponse.getId());
 		assertNotNull(invalidResponse.getMessage());
 
+		// logout nhannd (normal user role) & re-login super (superuser role)
+		SecurityUtils.getSubject().logout();
+		user.setUsername("super");
+		user.setPassword("secret");
+		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
 		undeploy(id);
 	}
 
@@ -143,7 +136,7 @@ public class ModelResourceTest extends JerseyTest {
 		SecurityManager securityManager = factory.getInstance();
 		SecurityUtils.setSecurityManager(securityManager);
 		UserResponse user = new UserResponse();
-		user.setUsername("nhanndX");
+		user.setUsername("super");
 		user.setPassword("secret");
 		target("user").request(MediaType.APPLICATION_JSON).post(Entity.json(user));
 
@@ -167,7 +160,7 @@ public class ModelResourceTest extends JerseyTest {
 
 		batchResponse = evaluateBatch(id, batchRequest);
 
-		assertEquals("orgx##" + batchRequest.getId(), batchResponse.getId());
+		assertEquals(batchRequest.getId(), batchResponse.getId());
 
 		evaluateCsv(id);
 
@@ -181,12 +174,10 @@ public class ModelResourceTest extends JerseyTest {
 
 		try(InputStream is = openPMML(id)){
 			Entity<InputStream> entity = Entity.entity(is, MediaType.APPLICATION_XML);
-
-			response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).put(entity);
+			response = target("model/" + id).request(MediaType.APPLICATION_JSON).put(entity);
 		}
 
 		assertEquals(201, response.getStatus());
-
 		return response.readEntity(ModelResponse.class);
 	}
 
@@ -200,7 +191,7 @@ public class ModelResourceTest extends JerseyTest {
 
 			Entity<FormDataMultiPart> entity = Entity.entity(formData, MediaType.MULTIPART_FORM_DATA);
 
-			response = target("model/orgx").request(MediaType.APPLICATION_JSON).post(entity);
+			response = target("model").request(MediaType.APPLICATION_JSON).post(entity);
 
 			formData.close();
 		}
@@ -209,13 +200,13 @@ public class ModelResourceTest extends JerseyTest {
 
 		URI location = response.getLocation();
 
-		assertEquals("/model/orgx/" + id, location.getPath());
+		assertEquals("/model/" + id, location.getPath());
 
 		return response.readEntity(ModelResponse.class);
 	}
 
 	private Response download(String id){
-		Response response = target("model/orgx/" + id + "/pmml").request(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML).get();
+		Response response = target("model/" + id + "/pmml").request(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML).get();
 
 		assertEquals(200, response.getStatus());
 		assertEquals(MediaType.APPLICATION_XML_TYPE.withCharset(CHARSET_UTF_8), response.getMediaType());
@@ -226,7 +217,7 @@ public class ModelResourceTest extends JerseyTest {
 	private EvaluationResponse evaluate(String id, EvaluationRequest request){
 		Entity<EvaluationRequest> entity = Entity.json(request);
 
-		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).post(entity);
+		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).post(entity);
 
 		assertEquals(200, response.getStatus());
 
@@ -236,7 +227,7 @@ public class ModelResourceTest extends JerseyTest {
 	private BatchEvaluationResponse evaluateBatch(String id, BatchEvaluationRequest batchRequest){
 		Entity<BatchEvaluationRequest> entity = Entity.json(batchRequest);
 
-		Response response = target("model/orgx/" + id + "/batch").request(MediaType.APPLICATION_JSON).post(entity);
+		Response response = target("model/" + id + "/batch").request(MediaType.APPLICATION_JSON).post(entity);
 
 		assertEquals(200, response.getStatus());
 
@@ -249,7 +240,7 @@ public class ModelResourceTest extends JerseyTest {
 		try(InputStream is = openCSV(id)){
 			Entity<InputStream> entity = Entity.entity(is, MediaType.TEXT_PLAIN_TYPE.withCharset(CHARSET_ISO_8859_1));
 
-			response = target("model/orgx/" + id + "/csv").queryParam("delimiterChar", "\\t").queryParam("quoteChar", "\\\"").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
+			response = target("model/" + id + "/csv").queryParam("delimiterChar", "\\t").queryParam("quoteChar", "\\\"").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
 		}
 
 		assertEquals(200, response.getStatus());
@@ -267,7 +258,7 @@ public class ModelResourceTest extends JerseyTest {
 
 			Entity<FormDataMultiPart> entity = Entity.entity(formData, MediaType.MULTIPART_FORM_DATA);
 
-			response = target("model/orgx/" + id + "/csv").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
+			response = target("model/" + id + "/csv").request(MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN).post(entity);
 
 			formData.close();
 		}
@@ -279,7 +270,7 @@ public class ModelResourceTest extends JerseyTest {
 	}
 
 	private SimpleResponse undeploy(String id){
-		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).delete();
+		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).delete();
 
 		assertEquals(200, response.getStatus());
 
@@ -287,7 +278,7 @@ public class ModelResourceTest extends JerseyTest {
 	}
 
 	private SimpleResponse undeployForm(String id){
-		Response response = target("model/orgx/" + id).request(MediaType.APPLICATION_JSON).header("X-HTTP-Method-Override", "DELETE").post(null);
+		Response response = target("model/" + id).request(MediaType.APPLICATION_JSON).header("X-HTTP-Method-Override", "DELETE").post(null);
 
 		assertEquals(200, response.getStatus());
 

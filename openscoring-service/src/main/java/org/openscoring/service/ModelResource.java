@@ -65,27 +65,22 @@ public class ModelResource {
 	}
 
 	@GET
-	@Path("{orgId}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchModelResponse queryBatch(@PathParam("orgId") String orgId){
+	public BatchModelResponse queryBatch(){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
+
+		if (currentUser.isAuthenticated()) {
 			BatchModelResponse batchResponse = new BatchModelResponse();
 
 			List<ModelResponse> responses = new ArrayList<>();
 
 			Collection<Map.Entry<String, Model>> entries = this.modelRegistry.entries();
 			for (Map.Entry<String, Model> entry : entries) {
-				String extractedOrgId = entry.getKey().split("##")[0];
-				if (extractedOrgId.equals(orgId)) {
-					ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(), false);
-					responses.add(response);
-				}
+				ModelResponse response = createModelResponse(entry.getKey(), entry.getValue(), false);
+				responses.add(response);
 			}
 
 			Comparator<ModelResponse> comparator = new Comparator<ModelResponse>() {
-
 				@Override
 				public int compare(ModelResponse left, ModelResponse right) {
 					return (left.getId()).compareToIgnoreCase(right.getId());
@@ -102,58 +97,50 @@ public class ModelResource {
 	}
 
 	@GET
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public ModelResponse query(@PathParam("orgId") String orgId, @PathParam("id") String id){
+	public ModelResponse query(@PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+
+		if (!currentUser.isAuthenticated()) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to view this content!");
 		}
 
 		Model model = this.modelRegistry.get(id);
 		if(model == null){
-			String[] org_id = id.split("##");
-			throw new NotFoundException("Model [" + org_id[1] + "] not found on organization [" + org_id[0] + "]");
+			throw new NotFoundException("Model [" + id + "] not found");
 		}
 
 		return createModelResponse(id, model, true);
 	}
 
 	@PUT
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.TEXT_XML})
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deploy(@PathParam("orgId") String orgId, @PathParam("id") String id,
+	public Response deploy(@PathParam("id") String id,
 						   @DefaultValue("false") @QueryParam("persist") boolean persist, InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
 		if (!currentUser.isAuthenticated()) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		} else {
 			// user authenticated... we need check user have permission to put model on this orgId or not
-			String role = orgId + "dev";
-			if (currentUser.hasRole(role)) {
+			if (currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
 				// add prefix orgId
-				id = orgId + "##" + id;
-				return doDeploy(id, is, persist, orgId);
+				return doDeploy(id, is, persist);
 			}
-			return null;
+			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 	}
 
 	@POST
-	@Path("{orgId}")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deployForm(@PathParam("orgId") String orgId, @FormDataParam("id") String id,
+	public Response deployForm(@FormDataParam("id") String id,
 							   @FormDataParam("pmml") InputStream is, @DefaultValue("false") @QueryParam("persist") boolean persist){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+
+		if (!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -161,10 +148,10 @@ public class ModelResource {
 			throw new BadRequestException("Invalid identifier");
 		}
 
-		return doDeploy(id, is, persist, orgId);
+		return doDeploy(id, is, persist);
 	}
 
-	private Response doDeploy(String id, InputStream is, boolean persist, String orgId){
+	private Response doDeploy(String id, InputStream is, boolean persist){
 		// handle persist
 		if (persist) {
 			try {
@@ -172,7 +159,7 @@ public class ModelResource {
 				if (!storagePathProp.endsWith("/")) {
 					storagePathProp = storagePathProp + "/";
 				}
-				String storagePath = storagePathProp + orgId + "/" + id.split("##")[1] + ".pmml";
+				String storagePath = storagePathProp + id + ".pmml";
 				File file = new File(storagePath);
 				file.getParentFile().mkdirs(); // create folder based on org
 				Files.copy(is, Paths.get(storagePath), StandardCopyOption.REPLACE_EXISTING);
@@ -200,9 +187,7 @@ public class ModelResource {
 		Model oldModel = this.modelRegistry.get(id);
 		if(oldModel != null){
 			success = this.modelRegistry.replace(id, oldModel, model);
-		} else
-
-		{
+		} else {
 			success = this.modelRegistry.put(id, model);
 		} // End if
 
@@ -214,31 +199,27 @@ public class ModelResource {
 
 		if(oldModel != null){
 			return (Response.ok().entity(entity)).build();
-		} else
-
-		{
-			UriBuilder uriBuilder = (this.uriInfo.getAbsolutePathBuilder()).path(id.split("##")[1]);
-
+		} else {
+			UriBuilder uriBuilder = (this.uriInfo.getAbsolutePathBuilder()).path(id);
 			URI uri = uriBuilder.build();
-
 			return (Response.created(uri).entity(entity)).build();
 		}
 	}
 
 	@GET
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/pmml")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}/pmml")
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_XML})
-	public Response download(@PathParam("orgId") String orgId, @PathParam("id") String id){
+	public Response download(@PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+
+		if (!currentUser.isAuthenticated() ||
+				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
 		final
 		Model model = this.modelRegistry.get(id, true);
+
 		if(model == null){
 			throw new NotFoundException("Model \"" + id + "\" not found");
 		}
@@ -274,15 +255,13 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public EvaluationResponse evaluate(@PathParam("orgId") String orgId, @PathParam("id") String id, EvaluationRequest request){
+	public EvaluationResponse evaluate(@PathParam("id") String id, EvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+		if (!currentUser.isAuthenticated() ||
+				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -294,19 +273,17 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{orgId}/{id: " + ModelRegistry.ID_REGEX + "}/batch")
+	@Path("{id: " + ModelRegistry.ID_REGEX + "}/batch")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchEvaluationResponse evaluateBatch(@PathParam("orgId") String orgId, @PathParam("id") String id, BatchEvaluationRequest request){
+	public BatchEvaluationResponse evaluateBatch(@PathParam("id") String id, BatchEvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+		if (!currentUser.isAuthenticated() ||
+				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
-		BatchEvaluationResponse batchResponse = new BatchEvaluationResponse(orgId + "##" + request.getId());
+		BatchEvaluationResponse batchResponse = new BatchEvaluationResponse(request.getId());
 
 		List<EvaluationRequest> requests = request.getRequests();
 
@@ -318,15 +295,14 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/csv")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsv(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
+	public Response evaluateCsv(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+
+		if (!currentUser.isAuthenticated() ||
+				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -336,15 +312,13 @@ public class ModelResource {
 	}
 
 	@POST
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}/csv")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsvForm(@PathParam("orgId") String orgId, @PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
+	public Response evaluateCsvForm(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+		if (!currentUser.isAuthenticated() ||
+				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -361,7 +335,6 @@ public class ModelResource {
 
 		try {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(is, charset)){
-
 				@Override
 				public void close(){
 					// The closing of the underlying java.io.InputStream is handled elsewhere
@@ -371,9 +344,7 @@ public class ModelResource {
 			try {
 				if(delimiterChar != null){
 					format = CsvUtil.getFormat(delimiterChar, quoteChar);
-				} else
-
-				{
+				} else {
 					format = CsvUtil.getFormat(reader);
 				}
 
@@ -383,7 +354,6 @@ public class ModelResource {
 			}
 		} catch(Exception e){
 			logger.error("Failed to load CSV document", e);
-
 			throw new BadRequestException(e);
 		}
 
@@ -405,7 +375,6 @@ public class ModelResource {
 					@Override
 					public void close() throws IOException {
 						flush();
-
 						// The closing of the underlying java.io.OutputStream is handled elsewhere
 					}
 				};
@@ -490,14 +459,11 @@ public class ModelResource {
 	}
 
 	@DELETE
-	@Path("{orgId}/{id:" + ModelRegistry.ID_REGEX + "}")
+	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public SimpleResponse undeploy(@PathParam("orgId") String orgId, @PathParam("id") String id){
+	public SimpleResponse undeploy(@PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		String role = orgId + "dev";
-		if (currentUser.isAuthenticated() && currentUser.hasRole(role)) {
-			id = orgId + "##" + id;
-		} else {
+		if (!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -647,9 +613,6 @@ public class ModelResource {
 
 	static
 	private ModelResponse createModelResponse(String id, Model model, boolean expand){
-		// split id by ## to filter out orgId
-		id = id.split("##")[1];
-
 		ModelResponse response = new ModelResponse(id);
 		response.setMiningFunction(model.getMiningFunction());
 		response.setSummary(model.getSummary());
