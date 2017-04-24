@@ -53,15 +53,13 @@ public class DirectoryDeployer extends Application {
 
 	@Parameter (
 			names = {"--username"},
-			description = "username for authentication",
-			required = true
+			description = "username for authentication"
 	)
 	private String username = null;
 
 	@Parameter (
 			names = {"--password"},
-			description = "password for authentication",
-			required = true
+			description = "password for authentication"
 	)
 	private String password = null;
 

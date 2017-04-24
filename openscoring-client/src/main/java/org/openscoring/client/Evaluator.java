@@ -72,8 +72,10 @@ public class Evaluator extends ModelApplication {
 
 				Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
 
-				for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
-					invocationBuilder.cookie(entry.getValue().toCookie());
+				if (authenResponse != null) {
+					for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+						invocationBuilder.cookie(entry.getValue().toCookie());
+					}
 				}
 				Invocation invocation = invocationBuilder.buildPost(Entity.json(request));
 

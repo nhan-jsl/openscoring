@@ -72,7 +72,7 @@ public class ModelResourceTest extends JerseyTest {
 		clientConfig.register(ObjectMapperProvider.class);
 	}
 
-	@Test
+	//@Test
 	public void decisionTreeIris() throws Exception {
 		String id = "DecisionTreeIris";
 
@@ -129,7 +129,7 @@ public class ModelResourceTest extends JerseyTest {
 		undeploy(id);
 	}
 
-	@Test
+	//@Test
 	public void associationRulesShopping() throws Exception {
 		// setup security manager & do login
 		Factory<SecurityManager> factory = new IniSecurityManagerFactory("classpath:shiro.ini");

@@ -40,15 +40,13 @@ public class ModelApplication extends Application {
 
 	@Parameter (
 			names = {"--username"},
-			description = "username for authentication",
-			required = true
+			description = "username for authentication"
 	)
 	private String username = null;
 
 	@Parameter (
 			names = {"--password"},
-			description = "password for authentication",
-			required = true
+			description = "password for authentication"
 	)
 	private String password = null;
 
@@ -63,14 +61,19 @@ public class ModelApplication extends Application {
 		Client client = ClientBuilder.newClient(clientConfig);
 
 		try {
-			// perform login here...
-			WebTarget target = client.target(authenticateEndpoint);
-			UserResponse userResponse = new UserResponse();
-			userResponse.setUsername(getUsername());
-			userResponse.setPassword(getPassword());
+			WebTarget target = null;
+			Response authenResponse = null;
 
-			Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildPost(Entity.json(userResponse));
-			Response authenResponse = invocation.invoke();
+			if (getUsername()!=null && getPassword()!=null) {
+				// perform login here...
+				target = client.target(authenticateEndpoint);
+				UserResponse userResponse = new UserResponse();
+				userResponse.setUsername(getUsername());
+				userResponse.setPassword(getPassword());
+
+				Invocation invocation = target.request(MediaType.APPLICATION_JSON).buildPost(Entity.json(userResponse));
+				authenResponse = invocation.invoke();
+			}
 
 			// change target to model path
 			target = client.target(getURI());

@@ -62,9 +62,12 @@ public class Undeployer extends ModelApplication {
 			public SimpleResponse perform(WebTarget target, Response authenResponse){
 				Invocation.Builder invocationBuilder = target.request(MediaType.APPLICATION_JSON);
 
-				for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
-					invocationBuilder.cookie(entry.getValue().toCookie());
+				if (authenResponse != null) {
+					for (Map.Entry<String, NewCookie> entry : authenResponse.getCookies().entrySet()) {
+						invocationBuilder.cookie(entry.getValue().toCookie());
+					}
 				}
+
 				Invocation invocation = invocationBuilder.buildDelete();
 				Response response = invocation.invoke();
 

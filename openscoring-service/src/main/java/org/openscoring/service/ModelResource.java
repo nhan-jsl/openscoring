@@ -37,6 +37,7 @@ import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.*;
+import javax.servlet.http.*;
 import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.net.URI;
@@ -66,10 +67,11 @@ public class ModelResource {
 
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchModelResponse queryBatch(){
+	public BatchModelResponse queryBatch(@Context HttpServletRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
 
-		if (currentUser.isAuthenticated()) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if (currentUser.isAuthenticated() || isLocalhost) {
 			BatchModelResponse batchResponse = new BatchModelResponse();
 
 			List<ModelResponse> responses = new ArrayList<>();
@@ -99,10 +101,11 @@ public class ModelResource {
 	@GET
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public ModelResponse query(@PathParam("id") String id){
+	public ModelResponse query(@Context HttpServletRequest request, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
 
-		if (!currentUser.isAuthenticated()) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if (!currentUser.isAuthenticated() && !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to view this content!");
 		}
 
@@ -118,14 +121,16 @@ public class ModelResource {
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.TEXT_XML})
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deploy(@PathParam("id") String id,
+	public Response deploy(@Context HttpServletRequest request,
+						   @PathParam("id") String id,
 						   @DefaultValue("false") @QueryParam("persist") boolean persist, InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		if (!currentUser.isAuthenticated()) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if (!currentUser.isAuthenticated() && !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		} else {
 			// user authenticated... we need check user have permission to put model on this orgId or not
-			if (currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
+			if (currentUser.hasRole(RoleConstant.SUPER_ROLE) || isLocalhost) {
 				// add prefix orgId
 				return doDeploy(id, is, persist);
 			}
@@ -136,11 +141,13 @@ public class ModelResource {
 	@POST
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response deployForm(@FormDataParam("id") String id,
+	public Response deployForm(@Context HttpServletRequest request,
+							   @FormDataParam("id") String id,
 							   @FormDataParam("pmml") InputStream is, @DefaultValue("false") @QueryParam("persist") boolean persist){
 		Subject currentUser = SecurityUtils.getSubject();
-
-		if (!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE))
+				&& !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -209,11 +216,11 @@ public class ModelResource {
 	@GET
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}/pmml")
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_XML})
-	public Response download(@PathParam("id") String id){
+	public Response download(@Context HttpServletRequest svRequest, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-
-		if (!currentUser.isAuthenticated() ||
-				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
+		boolean isLocalhost = svRequest.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || svRequest.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE)))
+				&& !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -258,10 +265,11 @@ public class ModelResource {
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public EvaluationResponse evaluate(@PathParam("id") String id, EvaluationRequest request){
+	public EvaluationResponse evaluate(@Context HttpServletRequest svRequest, @PathParam("id") String id, EvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		if (!currentUser.isAuthenticated() ||
-				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
+		boolean isLocalhost = svRequest.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || svRequest.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE)))
+				&& !isLocalhost){
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -276,10 +284,11 @@ public class ModelResource {
 	@Path("{id: " + ModelRegistry.ID_REGEX + "}/batch")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-	public BatchEvaluationResponse evaluateBatch(@PathParam("id") String id, BatchEvaluationRequest request){
+	public BatchEvaluationResponse evaluateBatch(@Context HttpServletRequest svRequest, @PathParam("id") String id, BatchEvaluationRequest request){
 		Subject currentUser = SecurityUtils.getSubject();
-		if (!currentUser.isAuthenticated() ||
-				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
+		boolean isLocalhost = svRequest.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || svRequest.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE)))
+				&& !isLocalhost){
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -298,11 +307,14 @@ public class ModelResource {
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsv(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType, InputStream is){
+	public Response evaluateCsv(@Context HttpServletRequest request,
+								@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar,
+								@QueryParam("quoteChar") String quoteChar, @HeaderParam(HttpHeaders.CONTENT_TYPE) String contentType,
+								InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-
-		if (!currentUser.isAuthenticated() ||
-				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE)))
+				&& !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -315,10 +327,13 @@ public class ModelResource {
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}/csv")
 	@Consumes(MediaType.MULTIPART_FORM_DATA)
 	@Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
-	public Response evaluateCsvForm(@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar, @QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
+	public Response evaluateCsvForm(@Context HttpServletRequest request,
+									@PathParam("id") String id, @QueryParam("delimiterChar") String delimiterChar,
+									@QueryParam("quoteChar") String quoteChar, @FormDataParam("csv") InputStream is){
 		Subject currentUser = SecurityUtils.getSubject();
-		if (!currentUser.isAuthenticated() ||
-				!(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE))) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !(currentUser.hasRole(RoleConstant.NORMAL_ROLE) || currentUser.hasRole(RoleConstant.SUPER_ROLE)))
+				&& !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
@@ -461,9 +476,11 @@ public class ModelResource {
 	@DELETE
 	@Path("{id:" + ModelRegistry.ID_REGEX + "}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public SimpleResponse undeploy(@PathParam("id") String id){
+	public SimpleResponse undeploy(@Context HttpServletRequest request, @PathParam("id") String id){
 		Subject currentUser = SecurityUtils.getSubject();
-		if (!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE)) {
+		boolean isLocalhost = request.getRemoteAddr().equals("0:0:0:0:0:0:0:1") || request.getRemoteAddr().equals("127.0.0.1");
+		if ((!currentUser.isAuthenticated() || !currentUser.hasRole(RoleConstant.SUPER_ROLE))
+				&& !isLocalhost) {
 			throw new NotAuthorizedException("Sorry, You don't have permission to do this action!");
 		}
 
